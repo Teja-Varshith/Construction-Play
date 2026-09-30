@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function user() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function project(pid) {
+      return firestore.get(/databases/(default)/documents/projects/$(pid)).data;
+    }
+    function active() { return request.auth != null && user().active == true; }
+    match /projects/{pid}/{file} {
+      allow read: if active() && (user().role in ['admin', 'ceo'] || request.auth.uid in project(pid).memberIds);
+      allow create: if active() && project(pid).deleted == false
+        && !(project(pid).get('stage', project(pid).statusId) in ['completed', 'cancelled'])
+        && (user().role == 'admin' || (user().role in ['manager', 'supervisor'] && request.auth.uid in project(pid).memberIds))
+        && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('(image/(jpeg|png|webp)|application/pdf)');
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,404 @@
+rules_version = '2';
+
+// Chennapatanam security rules.
+//
+// Roles live in users/{uid}.role (no Cloud Functions / custom claims yet), so
+// every check reads the caller's profile. Deactivating a user (active=false)
+// cuts off data access immediately.
+//
+// Nothing is ever hard-deleted from the client: records are soft-deleted
+// (deleted=true) or archived, so history and totals stay explainable.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+    function me() {
+      return get(userPath(request.auth.uid)).data;
+    }
+    function isActive() {
+      return signedIn() && exists(userPath(request.auth.uid)) && me().active == true;
+    }
+    function roleIn(roles) {
+      return isActive() && me().role in roles;
+    }
+    function isAdmin() {
+      return roleIn(['admin']);
+    }
+    function isLeader() {
+      return roleIn(['admin', 'ceo']);
+    }
+    function validRole(r) {
+      return r in ['ceo', 'admin', 'manager', 'supervisor', 'staff'];
+    }
+
+    // Audit stamps are set by the client with serverTimestamp() and verified here.
+    function auditOnCreate() {
+      let d = request.resource.data;
+      return d.createdBy == request.auth.uid
+        && d.updatedBy == request.auth.uid
+        && d.createdAt == request.time
+        && d.updatedAt == request.time;
+    }
+    function auditOnUpdate() {
+      let d = request.resource.data;
+      return d.updatedBy == request.auth.uid
+        && d.updatedAt == request.time
+        && d.createdBy == resource.data.createdBy
+        && d.createdAt == resource.data.createdAt;
+    }
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ---------- first-run setup ----------
+    // The very first account (the owner/admin) is created from the app's setup
+    // screen. It needs the setup code below and only works while
+    // config/bootstrap does not exist. Change the code before deploying to a
+    // new environment.
+    function bootstrapPath() {
+      return /databases/$(database)/documents/config/bootstrap;
+    }
+    function isBootstrapping() {
+      return signedIn()
+        && !exists(bootstrapPath())
+        && existsAfter(bootstrapPath())
+        && getAfter(bootstrapPath()).data.createdBy == request.auth.uid;
+    }
+
+    match /config/bootstrap {
+      // Read before sign-in so the app knows whether to show first-run setup.
+      allow get: if true;
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.setupCode == 'CPT-7Q4M-2XK9'
+        && getAfter(userPath(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if false;
+    }
+
+    // ---------- demo sign-in switch ----------
+    // Read before sign-in so the login page knows whether to offer demo
+    // accounts. Holds no credentials, only an on/off flag.
+    match /publicDemo/state {
+      allow get: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['enabled', 'updatedBy', 'updatedAt'])
+        && request.resource.data.enabled is bool
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // ---------- users ----------
+    match /users/{uid} {
+      // Everyone active can see colleagues (needed to assign people to
+      // projects). A user can always read their own profile, even when
+      // deactivated, so the app can explain why access stopped.
+      allow read: if isActive() || (signedIn() && request.auth.uid == uid);
+
+      allow create: if auditOnCreate()
+        && request.resource.data.uid == uid
+        && validRole(request.resource.data.role)
+        && request.resource.data.active is bool
+        && (
+          (isAdmin() && request.auth.uid != uid)
+          || (isBootstrapping() && request.auth.uid == uid
+              && request.resource.data.role == 'admin'
+              && request.resource.data.active == true)
+        );
+
+      // Admins manage other users. Nobody can change their own role or
+      // switch themselves off, so the last admin cannot lock everyone out.
+      allow update: if auditOnUpdate()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && (
+          (isAdmin() && request.auth.uid != uid
+            && validRole(request.resource.data.role)
+            && request.resource.data.active is bool)
+          || (isActive() && request.auth.uid == uid
+            && changedOnly(['name', 'phone', 'updatedAt', 'updatedBy']))
+        );
+
+      allow delete: if false;
+    }
+
+    // ---------- configuration (lists, templates, custom fields) ----------
+    match /config/{docId} {
+      allow read: if docId != 'bootstrap' && isActive();
+      allow create, update: if docId != 'bootstrap' && (isAdmin() || isBootstrapping());
+      allow delete: if false;
+    }
+
+    // ---------- projects (Phase 2 fills these in) ----------
+    function projectPath(pid) {
+      return /databases/$(database)/documents/projects/$(pid);
+    }
+    function isMember(pid) {
+      return isActive() && request.auth.uid in get(projectPath(pid)).data.memberIds;
+    }
+    function projectOpen(pid) {
+      let p = get(projectPath(pid)).data;
+      return p.deleted == false && !(p.get('stage', p.statusId) in ['completed', 'cancelled']);
+    }
+    function manager(pid) {
+      return isAdmin() || (roleIn(['manager']) && isMember(pid));
+    }
+    function reporter(pid) {
+      return manager(pid) || (roleIn(['supervisor']) && isMember(pid));
+    }
+    function validStage() {
+      let d = request.resource.data;
+      let statuses = get(/databases/$(database)/documents/config/projectStatuses).data.items;
+      return d.statusIndex is int && d.statusIndex >= 0 && d.statusIndex < statuses.size()
+        && statuses[d.statusIndex].id == d.statusId
+        && statuses[d.statusIndex].stage == d.stage
+        && statuses[d.statusIndex].archived == false;
+    }
+    function validRevision() {
+      return request.resource.data.revision == resource.data.get('revision', 0) + 1;
+    }
+
+    match /projects/{pid} {
+      // Managers and supervisors must query with
+      // where('memberIds', arrayContains: uid) for list reads to pass.
+      allow read: if isLeader() || (isActive() && request.auth.uid in resource.data.memberIds);
+      allow create: if isAdmin() && auditOnCreate() && request.resource.data.deleted == false && validStage();
+      allow update: if auditOnUpdate() && (
+        (isAdmin() && (
+          (projectOpen(pid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['statusId', 'stage', 'statusIndex']))
+          || (validStage() && validRevision() && changedOnly(['statusId', 'stage', 'statusIndex', 'statusHistory', 'holdPeriods', 'revision', 'updatedAt', 'updatedBy']))
+        ))
+        || (projectOpen(pid) && roleIn(['manager']) && isMember(pid)
+          && changedOnly(['name', 'nameLower', 'code', 'clientName', 'city', 'address', 'typeId', 'startDate', 'endDate', 'custom', 'revision', 'updatedAt', 'updatedBy']))
+        || (projectOpen(pid) && reporter(pid) && changedOnly(['updatedAt', 'updatedBy']))
+      );
+      allow delete: if false;
+
+      match /{collection}/{record} {
+        allow read: if isLeader() || isMember(pid);
+        function editor() {
+          return projectOpen(pid) && (collection == 'phases' ? manager(pid) : reporter(pid));
+        }
+        function validDay(d) {
+          let company = get(/databases/$(database)/documents/config/company).data;
+          let today = (request.time + duration.value(company.utcOffsetMinutes, 'm')).date();
+          let date = d.reportDay;
+          let month = date.month() < 10 ? '0' + string(date.month()) : string(date.month());
+          let day = date.day() < 10 ? '0' + string(date.day()) : string(date.day());
+          return date is timestamp && date == date.date() && date <= today
+            && date >= today - duration.value(company.dprBackdateDays, 'd')
+            && d.date == string(date.year()) + '-' + month + '-' + day && record == d.date;
+        }
+        function validRecord() {
+          let d = request.resource.data;
+          return d.deleted is bool && (
+            (collection == 'phases' && d.name is string && d.name.size() > 0
+              && d.weight is number && d.weight > 0 && d.weight <= 1000
+              && d.actualPct is number && d.actualPct >= 0 && d.actualPct <= 100
+              && d.order is int && d.order >= 0
+              && d.get('budgetPaise', 0) is int && d.get('budgetPaise', 0) >= 0
+              && d.get('delayReason', '') is string
+              && (d.get('plannedStart', null) == null && d.get('plannedEnd', null) == null
+                || (d.plannedStart is string && d.plannedEnd is string && d.plannedEnd > d.plannedStart)))
+            || (collection == 'dprs' && validDay(d) && d.submittedAt == request.time && d.submittedBy == request.auth.uid
+              && d.targetQuantity is number && d.targetQuantity >= 0
+              && d.achievedQuantity is number && d.achievedQuantity >= 0
+              && d.notes is string && d.unit is string
+              && d.photoUrls is list && d.photoUrls.size() > 0 && d.photoUrls.size() <= 6)
+            || (collection == 'issues' && d.title is string && d.title.size() > 0
+              && d.description is string && d.priorityId is string
+              && d.status in ['open', 'in-progress', 'resolved']
+              && (d.get('assigneeId', null) == null || d.assigneeId in get(projectPath(pid)).data.memberIds))
+            || (collection == 'documents' && d.name is string && d.name.size() > 0
+              && d.typeId is string && d.storagePath is string
+              && d.storagePath.matches('projects/' + pid + '/[^/]+'))
+          );
+        }
+        // getAfter permits template phases created in the project's initial batch.
+        allow create: if (editor() || (isAdmin() && !exists(projectPath(pid)) && getAfter(projectPath(pid)).data.deleted == false))
+          && auditOnCreate() && validRecord();
+        allow update: if editor() && auditOnUpdate() && validRevision() && validRecord();
+        allow delete: if false;
+
+        match /revisions/{revision} {
+          allow read: if isLeader() || isMember(pid);
+          allow create: if projectOpen(pid) && (collection == 'phases' ? manager(pid) : reporter(pid))
+            && request.resource.data.savedBy == request.auth.uid && request.resource.data.savedAt == request.time
+            && request.resource.data.diff(get(/databases/$(database)/documents/projects/$(pid)/$(collection)/$(record)).data)
+                .affectedKeys().hasOnly(['savedAt', 'savedBy']);
+          allow update, delete: if false;
+        }
+      }
+
+      // ---------- site stores (indents, GRNs, material issues) ----------
+      // Stock is never stored; it is summed from GRNs minus issues at read time.
+      function validLines(items) {
+        return items is list && items.size() > 0 && items.size() <= 50;
+      }
+      match /indents/{id} {
+        allow read: if isLeader() || isMember(pid);
+        // The site team (supervisor or manager) raises a request.
+        allow create: if projectOpen(pid) && reporter(pid) && auditOnCreate()
+          && validLines(request.resource.data.items)
+          && request.resource.data.note is string
+          && request.resource.data.status == 'pending'
+          && request.resource.data.requestedBy == request.auth.uid
+          && request.resource.data.requestedAt == request.time
+          && request.resource.data.revision == 1;
+        allow update: if projectOpen(pid) && auditOnUpdate() && validRevision() && (
+          // the project manager or the CEO/admin decides a pending indent
+          ((isLeader() || manager(pid)) && resource.data.status == 'pending'
+            && request.resource.data.status in ['approved', 'rejected']
+            && request.resource.data.decidedBy == request.auth.uid
+            && request.resource.data.decidedAt == request.time
+            && request.resource.data.decisionNote is string
+            && changedOnly(['status', 'decidedBy', 'decidedAt', 'decisionNote', 'revision', 'updatedAt', 'updatedBy']))
+          // goods received against an approved indent close it
+          || (manager(pid) && resource.data.status == 'approved' && request.resource.data.status == 'received'
+            && request.resource.data.grnId is string
+            && changedOnly(['status', 'grnId', 'receivedAt', 'revision', 'updatedAt', 'updatedBy']))
+          // the requester edits or withdraws their own pending indent
+          || (reporter(pid) && resource.data.status == 'pending' && request.resource.data.status == 'pending'
+            && resource.data.requestedBy == request.auth.uid
+            && validLines(request.resource.data.items)
+            && changedOnly(['items', 'neededBy', 'phaseId', 'note', 'deleted', 'revision', 'updatedAt', 'updatedBy']))
+        );
+        allow delete: if false;
+      }
+      match /grns/{id} {
+        allow read: if isLeader() || isMember(pid);
+        allow create: if projectOpen(pid) && manager(pid) && auditOnCreate()
+          && validLines(request.resource.data.items)
+          && request.resource.data.vendor is string && request.resource.data.vendor.size() > 0
+          && request.resource.data.date is string
+          && request.resource.data.receivedBy == request.auth.uid
+          && request.resource.data.revision == 1;
+        allow update, delete: if false;
+      }
+      match /materialIssues/{id} {
+        allow read: if isLeader() || isMember(pid);
+        allow create: if projectOpen(pid) && reporter(pid) && auditOnCreate()
+          && validLines(request.resource.data.items)
+          && request.resource.data.date is string
+          && request.resource.data.issuedBy == request.auth.uid
+          && request.resource.data.revision == 1;
+        allow update, delete: if false;
+      }
+
+      // Budget is set by the office and revised with a reason; only Functions
+      // (later) or this transaction ever touch spend, and spend itself is
+      // never stored here — it is summed from approved expenses at read time.
+      match /budget/{categoryId} {
+        allow read: if isLeader() || isMember(pid);
+        function validBudget() {
+          let d = request.resource.data;
+          return d.plannedPaise is int && d.plannedPaise >= 0
+            && d.originalPaise is int && d.revisions is list;
+        }
+        allow create: if manager(pid) && auditOnCreate() && validBudget() && request.resource.data.revision == 1;
+        allow update: if manager(pid) && auditOnUpdate() && validRevision() && validBudget();
+        allow delete: if false;
+      }
+    }
+
+    // ---------- expenses (Phase 3) ----------
+    // No Cloud Functions yet: these rules are the only guard on the approval
+    // state machine and on the amount that decides auto-approval.
+    function company() {
+      return get(/databases/$(database)/documents/config/company).data;
+    }
+    function companyThreshold() {
+      return company().get('approvalThresholdPaise', 5000000);
+    }
+    // A period an admin has closed for accounting needs an override reason;
+    // only an admin may set one, matching the office being the one who closes
+    // the books.
+    function validPeriod(d) {
+      let lockedUntil = company().get('financeLockedUntil', null);
+      return lockedUntil == null || d.date > lockedUntil
+        || (isAdmin() && d.get('lockOverrideReason', '') != '');
+    }
+    function validExpense(d) {
+      return d.amountPaise is int && d.amountPaise > 0
+        && d.categoryId is string && d.categoryId.size() > 0
+        && d.payee is string && d.payee.size() > 0
+        && d.date is string && d.description is string
+        && (d.get('phaseId', null) == null || d.phaseId is string)
+        && d.flags is list && d.deleted is bool && validPeriod(d);
+    }
+    match /expenses/{id} {
+      allow read: if isLeader() || isMember(resource.data.projectId);
+
+      allow create: if auditOnCreate() && validExpense(request.resource.data)
+        && manager(request.resource.data.projectId) && projectOpen(request.resource.data.projectId)
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.revision == 1
+        && request.resource.data.thresholdAtSubmit == companyThreshold()
+        && (
+          (request.resource.data.status == 'pending' && request.resource.data.get('approvedBy', null) == null)
+          || (request.resource.data.status == 'approved' && request.resource.data.approvedBy == 'system'
+              && request.resource.data.amountPaise <= companyThreshold())
+        );
+
+      allow update: if auditOnUpdate() && validRevision() && (
+        // the manager edits or resubmits their own project's expense
+        (manager(resource.data.projectId) && resource.data.status != 'void'
+          && request.resource.data.projectId == resource.data.projectId
+          && validExpense(request.resource.data)
+          && (
+            (resource.data.status in ['approved', 'rejected'] && request.resource.data.status == 'pending'
+              && request.resource.data.get('approvedBy', null) == null)
+            || request.resource.data.status == resource.data.status
+          )
+          && changedOnly(['amountPaise', 'categoryId', 'phaseId', 'payee', 'date', 'description', 'billPath', 'billHash',
+              'flags', 'custom', 'status', 'approvedBy', 'rejectReason', 'lockOverrideReason', 'revision', 'updatedAt', 'updatedBy']))
+        // the CEO or admin decides a pending expense
+        || (isLeader() && resource.data.status == 'pending'
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.decidedBy == request.auth.uid
+          && request.resource.data.decidedAt == request.time
+          && (request.resource.data.status == 'approved'
+              ? request.resource.data.approvedBy == request.auth.uid
+              : request.resource.data.get('approvedBy', null) == null)
+          && changedOnly(['status', 'approvedBy', 'decidedBy', 'decidedAt', 'rejectReason', 'revision', 'updatedAt', 'updatedBy']))
+        // the CEO or admin records payment of an approved bill (once)
+        || (isLeader() && resource.data.status == 'approved' && request.resource.data.status == 'approved'
+          && resource.data.get('paidAt', null) == null
+          && request.resource.data.paidAt == request.time
+          && request.resource.data.paidBy == request.auth.uid
+          && request.resource.data.paymentRef is string
+          && changedOnly(['paidAt', 'paidBy', 'paymentRef', 'revision', 'updatedAt', 'updatedBy']))
+        // an admin voids an approved expense; totals exclude void, nothing is deleted
+        || (isAdmin() && resource.data.status == 'approved' && request.resource.data.status == 'void'
+          && request.resource.data.voidReason is string && request.resource.data.voidReason.size() > 0
+          && changedOnly(['status', 'voidReason', 'revision', 'updatedAt', 'updatedBy']))
+      );
+      allow delete: if false;
+
+      match /revisions/{revision} {
+        allow read: if isLeader() || isMember(get(/databases/$(database)/documents/expenses/$(id)).data.projectId);
+        allow create: if manager(get(/databases/$(database)/documents/expenses/$(id)).data.projectId)
+          && request.resource.data.savedBy == request.auth.uid && request.resource.data.savedAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- activity / audit trail ----------
+    match /activity/{id} {
+      allow read: if isLeader() || (resource.data.get('projectId', null) != null && isMember(resource.data.projectId));
+      allow create: if (isActive() || isBootstrapping())
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
+    // Everything else is closed by default.
+  }
+}

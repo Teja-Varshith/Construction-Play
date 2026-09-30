@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "312134928781",
+    "project_id": "cptmn-dd372",
+    "storage_bucket": "cptmn-dd372.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:312134928781:android:e9cdd49a61fda792b655c4",
+        "android_client_info": {
+          "package_name": "com.chennapatanam.chennapatanam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAw9oMIMPNwHnjLMT31ktd28fRyW_CpIsE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

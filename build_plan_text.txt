@@ -1,0 +1,586 @@
+--- PAGE 1 ---
+TECHNICAL BUILD PLAN · INTERNAL
+BuildTrack: five phases
+from empty repo to live sites
+This plan goes with the client PRD. For each phase it lists what we build, the
+requirements, the edge cases that break construction apps in real use, and the exit
+criteria a phase must pass before the next one starts.
+How this maps to the PRD: PRD phase 1 is build phases 1–3, PRD phase 2 is build phase
+4, and PRD phase 3 plus the pilot is build phase 5.
+Flutter (Android · iOS · Web)
+Firebase: Firestore · Auth · Storage · Functions · FCM · Hosting 2–3 developers
+About 17–20 weeks
+Phase 1
+Foundation & platform
+2–3 weeks
+Phase 2
+CEO app & project hub
+4 weeks
+Phase 3
+Finance & approvals
+3 weeks
+Phase 4
+Field apps & offline
+4–5 weeks
+Phase 5
+Performance, bonus & go-live
+4 weeks
+00
+Ground rules for every phase
+
+--- PAGE 2 ---
+These decisions apply across the whole codebase. Most of the edge cases in later phases are
+handled by getting these right once.
+MONEY
+Store amounts as integer paise (amountPaise: 1250000). Never use doubles.
+Format with intlen_IN (₹12,50,000), with lakh/crore short forms on the dashboard.
+All sums happen server-side in Functions. The client never writes totals.
+DATES & TIME
+Company timezone in config/company.timezone (default Asia/Kolkata).
+A "working day" is a string key YYYY-MM-DD computed in that timezone. It is used for DPR
+and attendance doc IDs.
+Moments are stored as serverTimestamp() plus deviceTime. Trust the server; keep the
+device value for audit.
+Scheduled Functions declare timeZone explicitly.
+DERIVED DATA
+Triggers are at-least-once and may arrive out of order. Recompute from source (sum the
+category's approved expenses) instead of increment() deltas where the set is small.
+Where it isn't, use idempotent deltas keyed by event.id.
+A nightly reconciliation job recomputes every total and logs any drift it corrects.
+CHANGE-TOLERANT DATA
+Every doc has schemaVersion, createdAt/By, updatedAt/By and deleted (soft
+delete only).
+Model parsing is tolerant: unknown keys are kept in extra, missing keys use defaults,
+and a bad field never crashes a screen.
+Lists and labels come from config/*, never from hard-coded enums (except system
+states like approval status).
+ACCESS
+Custom claims hold onlyrole and companyId (the claims limit is 1000 bytes, so project
+lists don't fit).
+Project access uses projects/{pid}.memberIds[]. Rules check request.auth.uid in
+get(project).data.memberIds, and child docs copy memberIds down to avoid extra
+
+--- PAGE 3 ---
+get() reads.App Check is on for Firestore, Storage and Functions.
+AUDIT
+Every create, update, approve or reject writes to activity/ via a Function (who, what,
+before/after for money fields).
+Nothing is hard-deleted by users. Admins can archive.
+A daily managed Firestore export goes to a GCS bucket with 30-day retention. Point-in-
+time recovery is enabled in prod.
+Phase 1
+Foundation & platform 2–3 weeks
+This phase produces no visible features. It builds the base every later screen depends on: auth,
+roles, config, the dynamic form engine, rules, CI and the design system. Figma sign-off by the
+CEO happens in parallel during week 1.
+BUILD
+Two Firebase projects, buildtrack-dev and buildtrack-prod, set up through
+FlutterFire with flavors (--dart-define=ENV)
+Flutter app skeleton: Riverpod, go_router with role guards, freezed models, a responsive
+shell (sidebar on web and bottom nav on mobile), theme tokens and en_IN l10n
+scaffolding
+Auth: phone OTP on mobile, and email plus password or phone on web (web phone auth
+needs reCAPTCHA)
+Callable admin.setUserRole and admin.inviteUser, with a users/{uid} profile
+ConfigRepository, which streams config/* and caches it offline
+Dynamic form engine: renders text | number | money | date | select |
+multiselect | photo | file | toggle from field definitions, with validation
+Firestore and Storage rules with an emulator test suite
+CI with GitHub Actions: analyze, test, rules tests and Functions tests. Deploys to dev on
+merge; prod is deployed manually.
+Crash reporting: Crashlytics on mobile and Sentry on web (Crashlytics does not support
+web)
+
+--- PAGE 4 ---
+DATA CREATED
+users/{uid}        role, name, phone, email, active,
+                   fcmTokens[], lastSeenAt
+config/company     name, timezone, currency, fyStartMonth
+config/customFields  {entity: [{id, key, label, type,
+                   options[{id,label}], required,
+                   showOnCard, order, archived}]}
+config/lists       projectStatuses, projectTypes,
+                   phaseTemplates, expenseCategories,
+                   issuePriorities   (each item has a stable id)
+Edge cases
+CASE HANDLING RISK
+User deactivated while logged
+inSet active:false, revoke refresh tokens
+(revokeRefreshTokens) and force a claim refresh.
+Rules also check a disabledUsers/{uid} marker so
+access ends immediately, without waiting up to an
+hour for the token to expire.High
+Role changed (supervisor
+promoted to manager)Claims are updated server-side and the client listens
+to users/{uid}.claimsVersion. When it changes,
+the client calls getIdToken(true) and re-routes.Med
+Same phone number re-used
+by a new employeeAn invite links a phone to a users doc. A phone
+number already tied to an inactive user needs the
+admin to confirm reassignment, and the old history
+stays with the old uid.Med
+OTP SMS not received or rate-
+limitedResend timer, visible error text, and admin-set test
+numbers for demos. Configure the SMS region policy
+to India only to prevent SMS pumping costs.Med
+Custom field renamed,
+retyped or removedkey and type are immutable once used, and only
+label can change. Removing a field sets
+archived:true: values are kept but hidden. Select
+values store the option id, so renaming an option is
+safe.High
+A required custom field is
+added after records existOld records are not blocked. They show a "missing
+info" chip and the requirement applies only on the
+next edit.Med
+
+--- PAGE 5 ---
+CASE HANDLING RISK
+Old app version reads a newer
+doc shapeTolerant parsing. A config/app.minVersion check
+shows a friendly "please update" screen on mobile.Med
+Someone accidentally writes
+to prod from devSeparate projects and service accounts. The dev build
+shows a visible "DEV" banner, and prod deploys need
+a manual approval step in CI.Med
+Exit criteria
+Rules test suite passes: each role reads and writes only what it should (at least 40 cases)
+An admin can invite a user, assign a role, deactivate them, and access stops within 1
+minute
+Adding a custom field in config renders it in a sample form on web and mobile with no
+deploy
+CEO has approved the Figma for the 4 drill-down levels
+Phase 2
+CEO app & project hub 4 weeks
+The CEO's drill-down (portfolio →  stage list →  project overview →  tabs), plus the admin web
+forms that feed it: projects, phases, daily targets and DPRs, issues and documents. Finance tabs
+show placeholders until phase 3.
+BUILD: CEO
+Portfolio home reads a single stats/portfolio doc (1 read, instant)
+Stage list: a paginated query by status sorted by healthRank, with search on
+nameLower prefix and filters for manager and city
+Project overview reads the project doc (which carries its summary fields) and the latest 6
+photos
+Tabs: Timeline (planned vs actual Gantt), Team, Daily progress (calendar and DPR detail),
+Issues, Documents & photos, Info (including custom fields)
+Global "Needs you" inbox shell (approvals where status is pending)
+BUILD: ADMIN ENTRY (WEB)
+Project create/edit with the status lifecycle and custom fields
+
+--- PAGE 6 ---
+Phases from a template, editable, drag to reorder, with a weight per phase
+Daily targets and DPR entry form, with multiple photo upload
+Issues and document upload with a type tag
+Functions: onPhaseWrite/onDprWrite → project plannedPct, actualPct, health;
+onProjectWrite → stats/portfolio
+Scheduled: daily health recalculation (planned % moves with the calendar even when
+nothing is written) and an issue escalation job
+Health and progress formulas −
+ plannedPct(project, today) = Σ  phase.weight × clamp((today − plannedStart) / (pl
+actualPct                  = Σ  phase.weight × phase.pct          (phase.pct from
+gap                        = plannedPct − actualPct
+daysBehind                 = today − date on which plannedPct would equal actual
+health = RED   if gap > 10 or daysBehind > 7  or budgetUsedPct − actualPct > 15 
+         AMBER if gap > 3  or daysBehind > 2
+         GREEN otherwise                        (thresholds live in config/healt
+healthRank = RED 0 · AMBER 1 · GREEN 2 · NO_DATA 3   (used to sort "most at ris
+Phase weights default to equal and are normalised to add up to 1 on save.
+Edge cases
+CASE HANDLING RISK
+Project put On Hold The planned-progress clock pauses. holdPeriods[]
+are added to phase planned dates in the calculation,
+and health shows "On hold" instead of red.High
+Invalid status jump
+(Completed →  Pipeline)Allowed transitions come from
+config/lists.projectStatuses[].next[] and are
+enforced in a callable. Only admins can override, and
+the override requires a reason.Med
+Phase missing dates, zero-
+length, or end before startForm validation. The calculation treats such a phase
+as excluded and the project shows "Timeline
+incomplete" instead of fake numbers.Med
+Pipeline project with no
+phasesHealth is NO_DATA. Pipeline cards show value,
+probability and expected start instead of progress.Med
+
+--- PAGE 7 ---
+CASE HANDLING RISK
+Two DPRs for the same site
+and dayDoc ID {pid}_{YYYY-MM-DD}, so the second write
+edits the same report. Edits after submission keep a
+revisions[] trail.High
+DPR achieved quantity
+exceeds target, or is negativeNegative values are blocked. Values over 150% of
+target show a confirmation warning; they are allowed
+but flagged.Med
+Backdated DPR (entered 3
+days late)Allowed within config.dprBackdateDays (default 7).
+Its submittedLate flag counts in the phase 5
+scoring.Med
+Completed project edited
+laterCompleted projects are locked read-only. Reopening
+one is an admin action that is logged.Med
+Portfolio stats drift Nightly reconciliation recomputes stats/portfolio
+from projects, and the CEO screen shows "updated
+hh:mm".Med
+Large photos and slow site
+uploadsCompress on the client to 1600px at quality 75, strip
+EXIF GPS where not needed, and use the Resize
+Images extension to create 400px thumbnails. Lists
+only load thumbnails.Med
+Firestore in or array-
+contains-any limits (30
+values)Never filter by long lists of project IDs. Query on a
+memberIds array-contains for the user, or read the
+denormalised stats doc.Med
+Flutter web slow first load for
+the CEOCanvasKit with deferred imports for heavy tabs (Gantt,
+charts), and Hosting cache headers. Target first view
+under 3 seconds on 4G.Med
+Exit criteria
+Seed of 25 projects across every stage: portfolio numbers match a spreadsheet
+calculation exactly
+Health colours are correct for scripted scenarios: on track, slipping, behind, on hold, no
+data
+CEO usability test: finds "most behind ongoing project" in under 60 seconds with no help
+CEO role cannot edit any data (rules tests plus manual check)
+
+--- PAGE 8 ---
+Phase 3
+Finance & approvals 3 weeks
+Budget against actual cost per category, expenses with bill photos, CEO approval above a
+threshold, alerts, the evening summary and exports. This is where mistakes cost real money, so
+it carries the most edge cases.
+BUILD
+projects/{pid}/budget/{categoryId} with plannedPaise and spentPaise (spent is
+Function-only). Budget revisions keep history.
+expenses/{id} entry form: bill photo, custom fields, duplicate detection
+onExpenseWrite routes each expense to auto-approve or to a pending approval,
+recomputes the category and project totals, and writes to the activity log
+Callable approvals.decide(id, decision, reason), which runs in a transaction
+CEO Money tab: category bars, burn rate, forecast at completion, and the expense list
+with bill viewer
+Alerts job for category 80% and 100% and for spend running ahead of progress. FCM plus
+in-app inbox.
+Evening summary push (config time, default 19:00)
+Exports: a callable builds XLSX or PDF in Functions, stores it in Storage, and returns a
+signed URL valid for 15 minutes
+EXPENSE STATE MACHINE
+ draft ── submit ── ▶  pending ── approve ── ▶  approved
+                    │   └── reject(reason) ── ▶  rejected ── edit+resubmit ── ▶  pending
+  amount ≤  threshold at submit ───────── ▶  approved (auto, approvedBy:"system")
+approved ── edit amount/category/project ── ▶  pending (re-approval if new amount > 
+approved ── void(reason, admin) ── ▶  void   (never deleted; totals exclude)
+Only "approved" counts toward spentPaise.
+Edge cases
+CASE HANDLING RISK
+Splitting one bill to stay under
+the thresholdA duplicate and split detector flags expenses with the
+same project, payee and category within 48 hoursHigh
+
+--- PAGE 9 ---
+CASE HANDLING RISK
+whose sum exceeds the threshold. They go to the CEO
+with a "possible split" label.
+Same bill entered twice Hash of the bill photo, plus a soft match on payee,
+amount and date. The form warns before submit, and
+a flag shows in the approval list.High
+Approved expense edited
+afterwardsEdits to amount, category or project move it back to
+pending when the rules require. The old values stay in
+revisions[] and totals follow the current approved
+state only.High
+Two approvers act at once, or
+a double tapdecide() runs in a transaction that requires status
+== pending. The second call gets "already decided by
+X" and the UI disables the button while the call is in
+flight.High
+Threshold changed while
+expenses are pendingEach expense stores thresholdAtSubmit. A change
+applies only to new submissions, and existing pending
+items stay pending.Med
+Expense category deleted
+from configCategories can only be archived. Archived categories
+keep their totals and are hidden from new entry.Med
+Expense moved to another
+projectBoth projects' totals are recomputed, because a
+recompute from source handles this automatically.Med
+Expense on a completed or
+on-hold projectCompleted: blocked unless an admin reopens it. On
+hold: allowed, with a warning.Med
+Budget revised mid-project budgetRevisions[] keeps the date, old and new
+amounts, reason and user. The CEO sees the original
+and the current budget.Med
+No budget set for a category
+that has spendShown as "Unbudgeted spend" in red. It is never
+divided by zero.Med
+Forecast at completion with
+0% progressThe forecast is hidden until actualPct ≥  10% and
+shows "Not enough progress yet".Med
+Expense date in a closed
+monthconfig.finance.lockedUntil. Entries before that
+date need an admin override with a reason.Med
+Alert spam (80%  alert every
+night)Each alert has a key such as {pid}_{cat}_80 and
+fires once. It re-arms only if spend drops below theMed
+
+--- PAGE 10 ---
+CASE HANDLING RISK
+level and crosses it again.
+Big export times out The export Function runs with 540s  and 1GB, and
+streams rows. Anything over 50k rows is split by
+month.Med
+Bill photo leaks by URL Storage rules require project membership, and bill
+links are signed and short-lived. Download URLs are
+never stored in public docs.High
+Exit criteria
+A scripted run of 1,000 expenses with random edits, moves, rejections and voids gives
+totals equal to an independent recompute (zero drift)
+Concurrency test: 10 parallel decide() calls on one approval leave exactly 1 decision
+Duplicate and split detection catches all seeded cases in the test set
+CEO approves 5 pending expenses from the phone in under 60 seconds
+Phase 4
+Field apps & offline 4–5 weeks
+Managers and supervisors take over data entry from the office. The hard part is offline
+reliability: sites have weak or no signal, phones are low-end and shared, and people close apps
+mid-upload.
+BUILD: MANAGER
+"My projects" list with the same overview as the CEO, plus edit rights
+Update phases and progress, set daily targets (copy from yesterday), log expenses and
+raise or assign issues
+Approve staff leave, and review and return DPRs
+BUILD: SUPERVISOR (MOBILE ONLY)
+Today screen: targets, then attendance, then DPR, then submit
+Labour attendance: crew list, "all present" in one tap, then exceptions (absent, half-day,
+overtime hours)
+
+--- PAGE 11 ---
+DPR in under 2 minutes: quantities prefilled, labour count taken from attendance, at least
+one photo required, issues inline
+Workers register (labourers without a login): name, trade, daily wage, ID photo optional
+Reminders: FCM at 18:00, then an 8 pm escalation to the manager, then the CEO's
+"missing reports" list
+Offline architecture −
+Firestore offline persistence is on (mobile default), with the cache size set to 100 MB.
+Writes queue locally and sync automatically.
+Firebase Storage does not queue uploads offline, so we build a local upload queue
+(drift/SQLite table: localPath, storagePath, docRef, field, attempts, status),
+drained by workmanager on connectivity and at app start.
+A DPR doc is written immediately with photos: [{id, status:"pending"}]. The queue
+uploads each file and updates it to {status:"uploaded", path}, and the CEO view
+shows "photo syncing" for pending ones.
+Photos are copied into app storage before queuing, so they survive the gallery or cache
+being cleared.
+A sync status bar shows "3 items waiting to sync". The supervisor can see and retry them;
+items are never silently lost.
+Logout is blocked, with a clear message, while the queue has unsynced items.
+Edge cases
+CASE HANDLING RISK
+Supervisor offline all day,
+syncs next morningThe DPR doc ID uses the working day it was
+recorded for, not the sync time. deviceTime is kept
+and the server marks syncedLate, but it is not
+penalised when device time and the record date
+agree.High
+Phone clock set wrong or
+tamperedCompare deviceTime with serverTimestamp at
+sync. If the gap is over 10 minutes and the device was
+online at the time, flag the entry for manager review.Med
+Two people edit the same
+DPR offlinePer-target fields merge (items.
+{targetId}.achieved as map keys, not arrays), so
+most edits don't collide. If the same field is edited by
+both, last write wins and the loser is recorded in
+revisions[].Med
+
+--- PAGE 12 ---
+CASE HANDLING RISK
+Labourer marked present at
+two sites the same dayAn attendance write trigger checks
+workerDay/{workerId}_{date}. A conflict flags both
+entries for the managers, and the second entry counts
+as a half-day until resolved.High
+App killed mid-upload or
+photo corruptedThe queue retries with backoff (up to 10 attempts),
+then marks the item failed and visible with a "retake
+photo" action.Med
+Low storage on a cheap phoneCompress before queuing, and warn when free space
+is under 200 MB. Local copies are deleted once an
+upload is confirmed.Med
+Shared phone between two
+supervisorsLogout clears the local cache (clearPersistence)
+only after the queue is empty. The PIN/OTP login
+switches user.Med
+Supervisor assigned to
+multiple sitesA site picker appears on the Today screen, and the
+last-used site is remembered.Med
+Supervisor removed from a
+project while offlineQueued writes are rejected by rules at sync. The app
+shows "You no longer have access to Site X" with the
+unsent data, and offers to export it to the manager so
+nothing is silently dropped.High
+Holidays and Sundays config/calendar holds weekly offs and holidays per
+project. No DPR is expected and there are no
+reminders or missing-report alerts on those days.Med
+Night shift that crosses
+midnightThe working day is set by the shift start. The
+supervisor can choose "yesterday" as the report date
+within 12 hours.Med
+Stale FCM tokens and
+multiple devicesTokens are stored as an array with lastUsed. Tokens
+that fail with registration-token-not-registered
+are removed, and tokens older than 60 days are
+pruned.Med
+Reminder sent to someone on
+approved leaveReminder jobs skip users with approved leave for that
+date and send to the backup supervisor if one is set.Med
+Exit criteria
+
+--- PAGE 13 ---
+Airplane-mode test: a full day of attendance, DPR and 10 photos offline. After
+reconnecting, all of it syncs, with nothing lost or duplicated.
+Kill the app during upload 5 times: every photo eventually arrives
+DPR is completed in under 2 minutes by a real supervisor on a low-end Android phone (2
+GB RAM)
+Double attendance conflict is detected in all seeded cases
+Phase 5
+Performance, bonus & go-live 4 weeks
+Staff check-in, monthly scoring, the bonus run with CEO approval, then hardening and a two-site
+pilot before full rollout. Bonus mistakes damage trust with employees, so every number must be
+explainable.
+BUILD
+Staff check-in and check-out: GPS inside the project geofence, plus a selfie
+Manager monthly rating: 1–5 stars with an optional comment, due by the 3rd of the next
+month
+Scheduled job on the 1st at 02:00 computes scores/{YYYY-MM}_{personId} with a full
+breakdown and the inputs used
+bonusRuns/{YYYY-MM} draft, then CEO review (edit any row with a reason), then Approve,
+which locks it. Export to payroll XLSX.
+Employee view: own score, breakdown and tips. Never other people's.
+Settings: weights (must sum to 100), score bands to bonus %, eligibility rules
+SCORE FORMULA
+ attendance = presentDays / expectedWorkingDays     (approved leave excluded from
+targets    = Σ  achieved / Σ  target  (crew DPRs)  |  tasks on time / tasks due  
+quality    = 1 − min(1, reworkIssues / max(1, tasksDone) × k)
+rating     = (stars − 1) / 4
+score = 100 × Σ  weight ᵢ  × factor ᵢ           (factor with no data →  weight redistr
+bonus = band(score).pct × monthlyWage × (eligibleDays / monthDays)
+Edge cases
+
+--- PAGE 14 ---
+CASE HANDLING RISK
+Joined or left mid-month The bonus is pro-rated by eligible days. Anyone below
+minEligibleDays (default 10) is shown as "not
+eligible" with the reason.High
+Moved between projects mid-
+monthFactors are computed per project assignment period
+and weighted by days. The breakdown shows each
+project.Med
+No targets assigned or no
+rating givenThe factor is marked "no data" and its weight is
+spread proportionally over the others, so a missing
+rating doesn't count as a zero. The CEO sees a
+"manager rating missing" warning.High
+Attendance or DPR edited
+after the bonus runAn approved run is locked. Edits that affect a locked
+month create an adjustments/ entry that appears in
+the next month's run.High
+Weights changed mid-monthA run uses the weights snapshot taken at compute
+time, stored in bonusRuns.settingsSnapshot, so the
+run can always be explained later.Med
+GPS spoofing or poor
+accuracyReject isMocked on Android. Readings with accuracy
+worse than 100 m ask for a retry, and 3 failures allow
+a check-in flagged for manager confirmation.High
+Forgot to check out A job at config.autoCheckoutTime closes the record
+at shift end, flagged. Hours are not credited beyond
+the shift end.Med
+Location or camera
+permission deniedAn explanation screen with a button to open settings,
+and a fallback of manager-confirmed attendance.Med
+Labourer daily wage vs staff
+monthly wagemonthlyWage = dailyWage × presentDays for
+labour. Bands apply the same way and the payroll
+export shows both.Med
+Manager biased ratings The rating is capped at 20%  weight by default. The
+CEO sees each manager's rating distribution (all 5
+stars is flagged).Med
+Rounding differences in
+payrollBonus is computed in paise and rounded to the
+nearest ₹10 (configurable) only in the final column.
+The draft total always equals the sum of the rows.Med
+
+--- PAGE 15 ---
+CASE HANDLING RISK
+Selfie privacy Selfies are visible to the manager and admin only and
+deleted after 90 days by a lifecycle rule. Consent text
+is shown at first check-in.Med
+Hardening & go-live checklist (last 2 weeks) −
+Load test: 50 sites and 500 users for 30 days of seeded data. The CEO home screen loads
+in under 2 seconds.
+Firestore read cost review: no unbounded listeners on the CEO dashboard, and every list
+is paginated
+Budget alerts set on the GCP billing account
+Security pass: rules audit, App Check enforced, no secrets in the client, Storage paths
+reviewed
+Backup restore drill: restore yesterday's export into dev and confirm the data
+Pilot on 2–3 sites for 2 weeks, with a daily 10-minute feedback call with the supervisors
+Data migration: import existing projects and budgets from the client's Excel through a
+validated import screen with dry run and error report
+Training: a single one-page guide per role, plus 3 short videos in the local language
+Play Store internal track, then production; TestFlight, then App Store
+Support: an in-app "Report a problem" that attaches logs and a screenshot
+Exit criteria (go-live)
+A bonus run for pilot staff matches a hand calculation for every person, and every number
+can be traced to its inputs
+No critical or high bugs open. Crash-free sessions are 99.5% or higher during the pilot.
+Pilot supervisors submit DPRs on at least 90% of working days without office help
+CEO signs off after using it daily through the pilot
+Across all phases
+Testing, quality and team process
+
+--- PAGE 16 ---
+LAYER WHAT WE TEST TOOLING
+Business logic Health, forecast, totals, score
+and bonus formulas, and date
+and working-day helpers
+(timezone and DST-free
+boundaries)Dart test, Jest for
+Functions
+Security rules A matrix of every role × every
+collection × read/write, including
+cross-project access attempts@firebase/rules-unit-
+testing on the Emulator
+Functions Triggers are idempotent (the
+same event run twice gives the
+same result) and handle out-of-
+order events and concurrencyEmulator plus Jest
+UI Dynamic form engine, key
+screens, role routing and empty,
+error and loading statesWidget and golden tests
+End-to-end DPR offline flow, expense to
+approval to totals, and bonus runintegration_test on
+real devices (one low-end
+Android)
+Seed and simulation A script generates projects,
+people and months of activity for
+demos and load testsNode script against the
+Emulator or dev
+EVERY SCREEN MUST HAVE
+Loading, empty, error and offline states designed, not left as defaults
+Large touch targets (at least 48px), outdoor-readable contrast, and text that stays
+readable at 130% system font size
+All labels in l10n files, ready for Hindi or Marathi later
+DEFINITION OF DONE (PER FEATURE)
+Rules and tests written, edge cases from this plan covered
+Works on web, Android and iOS, offline where relevant
+Activity log entries created for data changes
+Demoed with seed data and reviewed against the PRD
+
+--- PAGE 17 ---
+Client inputs needed before phase 3
+Expense approval threshold and approvers, budget categories (their Excel), and project
+stages. These are open questions 1–3 in the PRD. Phase 1 and 2 can start without them
+because all of these are config values.
+BuildTrack build plan · v1 · 26 Sep 2026 · pairs with the client PRD v0.9
+
