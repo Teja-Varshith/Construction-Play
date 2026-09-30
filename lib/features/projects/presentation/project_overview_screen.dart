@@ -188,6 +188,7 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
         canRequest: report,
         canReceive: manage,
         canApprove: approveMaterials,
+        seeMoney: seeMoney,
       ),
       ProjectTab.issues => _IssuesTab(project: project, config: config),
       ProjectTab.documents => _DocumentsTab(project: project, config: config),

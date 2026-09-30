@@ -21,21 +21,48 @@ Future<void> showExpenseEditor(
   BuildContext context, {
   required Project project,
   Expense? expense,
+  ExpenseDraft? draft,
 }) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => ExpenseEditor(project: project, expense: expense),
+    builder: (_) => ExpenseEditor(project: project, expense: expense, draft: draft),
   );
+}
+
+/// Pre-filled values for a new expense booked from somewhere else (a GRN).
+class ExpenseDraft {
+  const ExpenseDraft({
+    this.amountPaise,
+    this.payee = '',
+    this.date,
+    this.description = '',
+    this.phaseId,
+    this.categoryHint,
+    this.grnId,
+  });
+
+  final int? amountPaise;
+  final String payee;
+  final String? date;
+  final String description;
+  final String? phaseId;
+
+  /// Picks the first active category whose id or label contains this word.
+  final String? categoryHint;
+  final String? grnId;
 }
 
 /// Logs a new expense, or edits/resubmits an existing one. Duplicate and
 /// split-bill checks run against the project's other expenses before save.
 class ExpenseEditor extends ConsumerStatefulWidget {
-  const ExpenseEditor({super.key, required this.project, this.expense});
+  const ExpenseEditor({super.key, required this.project, this.expense, this.draft});
 
   final Project project;
   final Expense? expense;
+
+  /// Starting values for a new expense; ignored when editing.
+  final ExpenseDraft? draft;
 
   @override
   ConsumerState<ExpenseEditor> createState() => _ExpenseEditorState();
@@ -72,6 +99,23 @@ class _ExpenseEditorState extends ConsumerState<ExpenseEditor> {
     _billPath = e?.billPath;
     _billHash = e?.billHash;
     if (e != null) _custom.addAll(e.custom);
+    final d = e == null ? widget.draft : null;
+    if (d != null) {
+      _amountPaise = d.amountPaise;
+      _payee = d.payee;
+      _date = d.date ?? _date;
+      _description = d.description;
+      _phaseId = d.phaseId;
+      final hint = d.categoryHint?.toLowerCase();
+      if (hint != null) {
+        _categoryId = ref
+            .read(appConfigProvider)
+            .activeOf(ConfigList.expenseCategories)
+            .where((c) => c.id.toLowerCase().contains(hint) || c.label.toLowerCase().contains(hint))
+            .firstOrNull
+            ?.id;
+      }
+    }
   }
 
   @override
@@ -92,7 +136,7 @@ class _ExpenseEditorState extends ConsumerState<ExpenseEditor> {
     return PopScope(
       canPop: !_busy,
       child: AlertDialog(
-        title: Text(editing ? 'Edit expense' : 'Log an expense'),
+        title: Text(editing ? 'Edit expense' : widget.draft?.grnId != null ? 'Book delivery as expense' : 'Log an expense'),
         content: SizedBox(
           width: 540,
           child: SingleChildScrollView(
@@ -272,6 +316,7 @@ class _ExpenseEditorState extends ConsumerState<ExpenseEditor> {
                 id: widget.expense?.id,
                 expectedRevision: widget.expense?.revision,
                 lockOverrideReason: overrideReason,
+                grnId: widget.expense == null ? widget.draft?.grnId : null,
               );
           break;
         } on StateError catch (e) {

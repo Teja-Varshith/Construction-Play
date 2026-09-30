@@ -108,7 +108,69 @@ class InventoryRepository {
     });
   }
 
-  /// Records goods received. Against an approved indent, also closes it.
+  /// The requester withdraws their own indent while it is still waiting for
+  /// approval. Soft delete, like everything else.
+  Future<void> withdrawIndent(String projectId, String indentId, String uid) async {
+    final ref = _col(projectId, 'indents').doc(indentId);
+    await _db.runTransaction((tx) async {
+      final doc = await tx.get(ref);
+      if (!doc.exists) throw StateError('Indent no longer exists.');
+      final data = doc.data()!;
+      if (IndentStatus.fromValue(data['status'] as String?) != IndentStatus.pending) {
+        throw StateError('This indent was already decided and can no longer be withdrawn.');
+      }
+      if (data['requestedBy'] != uid) throw StateError('Only the person who raised it can withdraw it.');
+      tx.update(ref, {
+        'deleted': true,
+        'revision': ((data['revision'] as num?)?.toInt() ?? 0) + 1,
+        ...auditUpdate(uid),
+      });
+      ActivityEntry(
+        actorId: uid,
+        action: 'withdrawn',
+        entity: 'indent',
+        entityId: indentId,
+        projectId: projectId,
+        summary: 'Withdrew indent ${data['number']}',
+      ).addToTransaction(tx, _db);
+    });
+  }
+
+  /// Closes an approved indent before everything arrived: the rest is no
+  /// longer needed or was bought another way. Stops it counting as on order
+  /// or late.
+  Future<void> closeIndent(String projectId, String indentId, String note, String uid) async {
+    if (note.trim().isEmpty) throw ArgumentError('Say why the rest is not coming.');
+    final ref = _col(projectId, 'indents').doc(indentId);
+    await _db.runTransaction((tx) async {
+      final doc = await tx.get(ref);
+      if (!doc.exists) throw StateError('Indent no longer exists.');
+      final data = doc.data()!;
+      if (IndentStatus.fromValue(data['status'] as String?) != IndentStatus.approved) {
+        throw StateError('Only an approved indent awaiting delivery can be closed.');
+      }
+      tx.update(ref, {
+        'status': IndentStatus.closed.value,
+        'closeNote': note.trim(),
+        'closedBy': uid,
+        'closedAt': FieldValue.serverTimestamp(),
+        'revision': ((data['revision'] as num?)?.toInt() ?? 0) + 1,
+        ...auditUpdate(uid),
+      });
+      ActivityEntry(
+        actorId: uid,
+        action: 'closed',
+        entity: 'indent',
+        entityId: indentId,
+        projectId: projectId,
+        summary: 'Closed indent ${data['number']} short: ${note.trim()}',
+      ).addToTransaction(tx, _db);
+    });
+  }
+
+  /// Records goods received. Against an approved indent, [completesIndent]
+  /// (everything ordered has now arrived) also marks the indent received;
+  /// otherwise it stays open for the rest of the delivery.
   Future<void> recordGrn({
     required String projectId,
     required List<MaterialLine> items,
@@ -118,6 +180,7 @@ class InventoryRepository {
     required String note,
     required String uid,
     String? indentId,
+    bool completesIndent = true,
   }) async {
     _check(items);
     if (vendor.trim().isEmpty) throw ArgumentError('Enter the vendor.');
@@ -144,7 +207,7 @@ class InventoryRepository {
         'revision': 1,
         ...auditCreate(uid),
       });
-      if (indent != null) {
+      if (indent != null && completesIndent) {
         tx.update(indent.reference, {
           'status': IndentStatus.received.value,
           'grnId': ref.id,
@@ -160,7 +223,7 @@ class InventoryRepository {
         entityId: ref.id,
         projectId: projectId,
         summary: 'Received $number from ${vendor.trim()}'
-            '${indent == null ? '' : ' against ${indent.data()!['number']}'}',
+            '${indent == null ? '' : '${completesIndent ? ' against' : ' (part delivery) against'} ${indent.data()!['number']}'}',
       ).addToTransaction(tx, _db);
     });
   }
@@ -178,9 +241,14 @@ class InventoryRepository {
     required String uid,
   }) async {
     _check(items);
+    // The same material on two lines must still fit in stock together.
+    final wanted = <String, double>{};
+    for (final l in items) {
+      wanted[l.key] = (wanted[l.key] ?? 0) + l.qty;
+    }
     for (final l in items) {
       final have = available[l.key] ?? 0;
-      if (l.qty > have + 1e-9) {
+      if (wanted[l.key]! > have + 1e-9) {
         throw StateError('Only ${formatQty(have)} ${l.unit} of ${l.material} in stock.');
       }
     }

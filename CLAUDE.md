@@ -17,10 +17,14 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
   - `dprs/{YYYY-MM-DD}` – daily progress report (id is the date, needs ≥1 photo, backdate window).
   - `issues/{id}`, `documents/{id}`, and `*/revisions/*` history docs.
   - `budget/{categoryId}` – planned amount per expense category, with revision history.
-  - `indents/{id}` – material requests: `pending → approved|rejected → received`. Approved by the project
-    manager or CEO/admin (rules enforce it). `grns/{id}` – goods received (vendor, rates), closes its indent.
+  - `indents/{id}` – material requests: `pending → approved|rejected`, `approved → received|closed`.
+    Approved by the project manager or CEO/admin (rules enforce it); the requester can withdraw a pending one
+    (soft delete). `grns/{id}` – goods received (vendor, rates). Several GRNs can fill one indent (part
+    deliveries); the one that completes it marks it `received`. `closed` = closed short with a `closeNote`.
     `materialIssues/{id}` – stock issued to the work. Stock = GRN qty − issued qty, never stored
-    (`InventorySummary`, `lib/features/inventory/`).
+    (`InventorySummary`, `lib/features/inventory/`). Also derived there: received-per-indent, on order,
+    days of stock left (last 14 days of issues), average/last rate, stock value, material used by phase.
+    A GRN can be booked as an expense (`expenses.grnId`, via `ExpenseDraft` in the expense editor).
 - `expenses/{id}` – top-level; `projectId`, optional `phaseId`, `categoryId`, amount, status
   `pending|approved|rejected|void`. Only **approved** counts as spent.
 - `config/*` – company settings, lists (statuses, categories, priorities...), phase templates, custom fields.
@@ -60,6 +64,10 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
 - Three headline measures per project: cost overrun (spent − budget × % done), payables (approved, unpaid
   expenses; overdue after 30 days) and speed (% per week vs % per week needed).
 - CEO dashboard "Delay & risk watchlist" lists every factor across projects; tracker "Main factor" also deep-links.
+- Materials factors: late deliveries, indents stuck in approval, and materials about to run out with nothing
+  ordered (`materials low`).
+- Rules have a 1000-expression budget per request: in multi-branch `allow update` rules, test the cheap status
+  transition first and the role functions last (see `indents`).
 
 ## UI conventions
 - Clean, flat, rounded surfaces (`AppRadius`, `AppColors.line`, `appSoftShadow` in `app_theme.dart`); no NeoPop.

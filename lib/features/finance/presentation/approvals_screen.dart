@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import '../../auth/domain/app_user.dart';
 import '../../inventory/data/inventory_repository.dart';
 import '../../inventory/domain/inventory.dart';
+import '../../inventory/presentation/indent_dialogs.dart';
 import '../../projects/domain/project_nav.dart';
 import '../../users/data/user_repository.dart';
 
@@ -106,12 +107,8 @@ class _IndentApprovalState extends ConsumerState<_IndentApproval> {
   bool _busy = false;
 
   Future<void> _decide(bool approve) async {
-    final note = await askText(
-      context,
-      title: approve ? 'Approve ${widget.indent.number}' : 'Reject ${widget.indent.number}',
-      label: approve ? 'Note for the site' : 'Reason for rejecting',
-    );
-    if (note == null) return;
+    final note = await askIndentDecision(context, widget.indent, approve: approve);
+    if (note == null || !mounted) return;
     setState(() => _busy = true);
     try {
       await ref.read(inventoryRepositoryProvider).decideIndent(
@@ -121,8 +118,9 @@ class _IndentApprovalState extends ConsumerState<_IndentApproval> {
         note,
         ref.read(currentUserProvider).uid,
       );
+      if (mounted) showMessage(context, '${widget.indent.number} ${approve ? 'approved' : 'rejected'}');
     } catch (e) {
-      if (mounted) showMessage(context, '$e', error: true);
+      if (mounted) showMessage(context, '$e'.replaceFirst(RegExp(r'^(Bad state|Invalid argument\(s\)): '), ''), error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -132,11 +130,21 @@ class _IndentApprovalState extends ConsumerState<_IndentApproval> {
   Widget build(BuildContext context) {
     final x = widget.indent;
     final waited = x.waitingDays(DateTime.now());
+    final stock = ref.watch(projectInventoryProvider(widget.projectId)).value;
+    // What the site already has of each requested material, so the approver
+    // can tell a real shortage from an over-order.
+    final onSite = [
+      for (final l in x.items)
+        if (stock?.line(l.key) case final s?)
+          '${s.material}: ${formatQty(s.inStock)} ${s.unit} in stock'
+              '${s.daysLeft == null ? '' : ' (~${s.daysLeft!.floor()} days)'}'
+              '${s.onOrder > 0 ? ', ${formatQty(s.onOrder)} on order' : ''}',
+    ];
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: AppRadius.card,
         border: Border.all(color: AppColors.line),
       ),
@@ -170,6 +178,10 @@ class _IndentApprovalState extends ConsumerState<_IndentApproval> {
           if (x.note.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(x.note, style: const TextStyle(color: AppColors.muted)),
+          ],
+          if (onSite.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(onSite.join(' · '), style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
           ],
           const SizedBox(height: 10),
           Wrap(

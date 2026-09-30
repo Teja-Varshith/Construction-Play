@@ -21,6 +21,7 @@ final projectInsightProvider =
       final issues = ref.watch(projectIssuesProvider(projectId));
       final reports = ref.watch(projectDprsProvider(projectId));
       final indents = ref.watch(projectIndentsProvider(projectId));
+      final inventory = ref.watch(projectInventoryProvider(projectId));
       for (final AsyncValue<Object?> source in [
         project,
         phases,
@@ -29,6 +30,7 @@ final projectInsightProvider =
         issues,
         reports,
         indents,
+        inventory,
       ]) {
         if (source.hasError) {
           return AsyncError(
@@ -54,6 +56,7 @@ final projectInsightProvider =
           issues: issues.requireValue,
           reports: reports.requireValue,
           indents: indents.requireValue,
+          stock: inventory.requireValue.stock,
           priorityLabel: (id) => config.labelOf(ConfigList.issuePriorities, id),
         ),
       );

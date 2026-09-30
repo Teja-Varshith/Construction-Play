@@ -230,6 +230,7 @@ class ProjectInsight {
     List<ProjectIssue> issues = const [],
     List<DailyProgressReport> reports = const [],
     List<Indent> indents = const [],
+    List<StockLine> stock = const [],
     String Function(String priorityId)? priorityLabel,
   }) {
     final analysis = ProjectAnalysis.calculate(project, phases, stage, today);
@@ -394,6 +395,22 @@ class ProjectInsight {
                 ? ProjectLink(ProjectTab.materials, 'indent:${worst.id}')
                 : const ProjectLink(ProjectTab.materials, 'late'),
             action: lateIndents.length == 1 ? 'Open indent' : 'See late deliveries',
+          ),
+        );
+      }
+      // Material about to run out with nothing requested or on its way.
+      final runningOut = stock.where((l) => l.needsReorder && (l.out || (l.daysLeft ?? 99) <= StockLine.lowDays)).toList()
+        ..sort((a, b) => (a.daysLeft ?? 0).compareTo(b.daysLeft ?? 0));
+      if (runningOut.isNotEmpty) {
+        final names = runningOut.take(3).map((l) => l.out ? '${l.material} (out)' : '${l.material} (~${l.daysLeft!.floor()}d)');
+        factors.add(
+          ProjectFactor(
+            kind: FactorKind.materials,
+            severe: runningOut.any((l) => l.out),
+            title: '${runningOut.length} material${runningOut.length == 1 ? '' : 's'} about to run out',
+            detail: '${names.join(', ')}${runningOut.length > 3 ? ' and more' : ''}. Nothing is requested or on order yet.',
+            link: const ProjectLink(ProjectTab.materials, 'low'),
+            action: 'See stock',
           ),
         );
       }

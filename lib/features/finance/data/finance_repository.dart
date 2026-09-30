@@ -123,6 +123,7 @@ class FinanceRepository {
     String? id,
     int? expectedRevision,
     String? lockOverrideReason,
+    String? grnId,
   }) async {
     final project = _db.collection('projects').doc(projectId);
     final ref = id == null ? _expenses.doc() : _expenses.doc(id);
@@ -188,6 +189,8 @@ class FinanceRepository {
             : (backToPending ? null : current!.data()!['approvedBy']),
         if (backToPending) 'rejectReason': '',
         'custom': custom,
+        // Set once when a bill is booked from a GRN; edits keep it as is.
+        if (id == null && grnId != null) 'grnId': grnId,
         // submittedBy/At identify who originally logged this expense; editing
         // it later (createdBy/updatedBy track that instead) must not change them,
         // or the security rules' changedOnly() check on edits would reject the write.
