@@ -9,6 +9,14 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
 - **CEO** – lands on the portfolio dashboard (`CeoPortfolioScreen`), reads everything, approves expenses.
 - **Admin** (office) – creates users/projects, settings, budgets, can void expenses, loads demo data.
 - **Manager** – edits their own projects (phases, budget, expenses). **Supervisor** – daily reports, issues, documents.
+- Managers, supervisors and staff land on **My day** (`lib/features/home/`): tasks computed by `MyDay.forProject`
+  from their projects' records (today's report, backfill, assigned issues, indents to approve, late deliveries,
+  low stock, late phases without a reason, unbooked deliveries, rejected expenses), each with one action, plus
+  quick actions (daily report, issue, material, expense). New recurring job for site staff = add a `DayTask` there.
+  Managers reach the portfolio tracker at `/portfolio`. The CEO home starts with `_LeaderBrief` (decisions waiting,
+  top risks) above the portfolio.
+- Principle: the app must save site staff time. Pre-fill from the last entry, default sensibly, keep the day's main
+  action one tap away on phones, and show people what to do rather than charts to interpret.
 - Managers/supervisors only see projects whose `memberIds` contain them; their queries must filter on it.
 
 ## Core data (Firestore)
@@ -59,7 +67,7 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
   `openProjectLink()` switches tab in place via `ProjectNavScope` (`presentation/project_nav_scope.dart`).
 - Each tab reads `ProjectNavScope.focusFor(tab)` and applies it once per `seq` (filters, `FocusHighlight` scroll +
   outline). Focus values: timeline `phase:<id>`; reports `missing`|`output`; issues `urgent`|`open`|`issue:<id>`;
-  money `pending`|`payables`|`phase:<id>`|`overspend`; materials `pending`|`late`|`low`|`indent:<id>`|`phase:<id>`;
+  money `pending`|`payables`|`phase:<id>`|`overspend`; materials `pending`|`late`|`low`|`unbooked`|`indent:<id>`|`phase:<id>`;
   issues also `phase:<id>`; info `holds`. Daily progress slug is `daily`; `reports` is PDF report generation.
 - Three headline measures per project: cost overrun (spent − budget × % done), payables (approved, unpaid
   expenses; overdue after 30 days) and speed (% per week vs % per week needed).

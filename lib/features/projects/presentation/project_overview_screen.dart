@@ -176,6 +176,11 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
           );
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 1000;
+    final ongoing = stage == ProjectStage.ongoing;
+    final todayKey = WorkDay.today(utcOffsetMinutes: config.company.utcOffsetMinutes);
+    final reportedToday =
+        ref.watch(projectDprsProvider(project.id)).value?.any((r) => r.date == todayKey) ?? false;
+    final reportLabel = reportedToday ? 'Edit today\'s report' : 'Daily report';
 
     Widget page(ProjectTab tab) => switch (tab) {
       ProjectTab.overview => ProjectDashboard(project: project),
@@ -210,6 +215,15 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
       seq: _seq,
       onOpen: _open,
       child: Scaffold(
+        // On phones the day's main job stays one tap away instead of in the menu.
+        floatingActionButton: report && ongoing && width < 700 &&
+                (current == ProjectTab.overview || current == ProjectTab.daily)
+            ? FloatingActionButton.extended(
+                onPressed: () => add('dprs'),
+                icon: Icon(reportedToday ? Icons.task_alt : Icons.add_task),
+                label: Text(reportLabel),
+              )
+            : null,
         appBar: AppBar(
           toolbarHeight: 64,
           titleSpacing: 8,
@@ -239,8 +253,8 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
               FilledButton.icon(
                 onPressed: () => add('dprs'),
                 style: FilledButton.styleFrom(minimumSize: const Size(0, 38)),
-                icon: const Icon(Icons.add_task, size: 18),
-                label: const Text('Daily report'),
+                icon: Icon(reportedToday ? Icons.task_alt : Icons.add_task, size: 18),
+                label: Text(reportLabel),
               ),
               const SizedBox(width: 4),
             ],
@@ -250,7 +264,7 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
                 icon: const Icon(Icons.more_vert),
                 onSelected: add,
                 itemBuilder: (_) => [
-                  if (report && width < 700) const PopupMenuItem(value: 'dprs', child: Text('Submit daily report')),
+                  if (report && width < 700) PopupMenuItem(value: 'dprs', child: Text(reportLabel)),
                   if (report && width < 700) const PopupMenuItem(value: 'issues', child: Text('Raise an issue')),
                   if (manage) const PopupMenuItem(value: 'details', child: Text('Edit project details')),
                   if (manage) const PopupMenuItem(value: 'phases', child: Text('Add phase')),

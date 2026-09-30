@@ -10,9 +10,11 @@ import '../../auth/domain/app_user.dart';
 import '../../projects/data/project_repository.dart';
 import '../../projects/presentation/ceo_portfolio_screen.dart';
 import '../../users/data/user_repository.dart';
+import 'my_day_screen.dart';
 
-/// Home differs by role. The CEO gets the Phase 2 portfolio; office setup and
-/// delivery workspaces retain their role-specific starting points.
+/// Home differs by role: the CEO gets the portfolio, the office admin the setup
+/// checklist, and everyone on site (managers, supervisors, staff) My day —
+/// what needs doing today, one tap from each action.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, this.sort});
 
@@ -21,8 +23,8 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    // Everyone but the office admin starts on their projects.
-    if (user.role != UserRole.admin) return CeoPortfolioScreen(sort: sort);
+    if (user.role == UserRole.ceo) return CeoPortfolioScreen(sort: sort);
+    if (user.role != UserRole.admin) return const MyDayScreen();
     final company = ref.watch(appConfigProvider).company;
     final firstName = user.name.split(' ').first;
     return PageScaffold(

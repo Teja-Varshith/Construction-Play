@@ -131,11 +131,35 @@ class _ProjectEditorState extends ConsumerState<ProjectEditor> {
     }
     if (widget.kind == 'dprs') {
       final config = ref.read(appConfigProvider);
-      _values.putIfAbsent(
-        'date',
-        () => WorkDay.today(utcOffsetMinutes: config.company.utcOffsetMinutes),
-      );
+      final today = WorkDay.today(utcOffsetMinutes: config.company.utcOffsetMinutes);
+      _values.putIfAbsent('date', () => today);
+      // Sites keep the same unit and usually the same target day to day, so a
+      // new report starts from the last one instead of a blank form.
+      if (widget.record == null) {
+        final last = _lastReport(today);
+        if (last != null) {
+          _values.putIfAbsent('unit', () => last.unit);
+          if (last.targetQuantity != null) _values.putIfAbsent('targetQuantity', () => last.targetQuantity);
+        }
+      }
     }
+    // A new issue starts at "medium", not the first (lowest) priority.
+    if (widget.kind == 'issues' && widget.record == null) {
+      final config = ref.read(appConfigProvider);
+      if (config.activeOf(ConfigList.issuePriorities).any((p) => p.id == 'medium')) {
+        _values['priorityId'] = 'medium';
+      }
+    }
+  }
+
+  /// The most recent report before [today], if any.
+  DailyProgressReport? _lastReport(String today) {
+    final reports = ref.read(projectDprsProvider(widget.project.id)).value ?? const <DailyProgressReport>[];
+    DailyProgressReport? best;
+    for (final r in reports) {
+      if (r.date.compareTo(today) < 0 && (best == null || r.date.compareTo(best.date) > 0)) best = r;
+    }
+    return best;
   }
 
   String? _required(String? value) =>
@@ -252,6 +276,14 @@ class _ProjectEditorState extends ConsumerState<ProjectEditor> {
         Text(
           'One report per site and day. Reports can be entered up to ${config.company.dprBackdateDays} days late.',
         ),
+        if (_id == null)
+          if (_lastReport(_values['date'] as String? ?? '') case final last?)
+            Text(
+              'Last report (${WorkDay.display(last.date)}): '
+              '${last.achievedQuantity ?? '–'} of ${last.targetQuantity ?? '–'} ${last.unit}. '
+              'Target and unit are copied from it; change them if today differs.',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5),
+            ),
         _number('targetQuantity', 'Today’s target quantity'),
         _number('achievedQuantity', 'Quantity completed'),
         _text('unit', 'Unit (m², m³, rooms, floors...)'),

@@ -23,6 +23,7 @@ import '../../users/data/user_repository.dart';
 import '../data/inventory_repository.dart';
 import '../domain/inventory.dart';
 import 'indent_dialogs.dart';
+import 'material_actions.dart';
 import 'material_form_dialog.dart';
 import 'stock_ledger_sheet.dart';
 
@@ -141,6 +142,7 @@ class _MaterialsSectionState extends ConsumerState<MaterialsSection> {
         _view = _View.stock;
         _lowOnly = true;
       }
+      if (focus == 'unbooked') _view = _View.received;
       if (focusIndent != null) _show(_IndentFilter.all);
       if (phase != null) _show(_IndentFilter.all, phase: phase);
     }
@@ -152,7 +154,7 @@ class _MaterialsSectionState extends ConsumerState<MaterialsSection> {
         value: summary,
         data: (s) {
           final actions = _Actions(
-            raise: widget.canRequest ? ({List<MaterialLine> prefill = const []}) => _raise(context, phases, s, today, prefill) : null,
+            raise: widget.canRequest ? ({List<MaterialLine> prefill = const []}) => _raise(context, prefill) : null,
             receive: widget.canReceive ? ({Indent? against}) => _receive(context, s, today, against) : null,
             issue: widget.canRequest && s.stock.any((l) => l.inStock > 1e-9)
                 ? ({StockLine? line}) => _issue(context, s, phases, today, issues, line)
@@ -315,7 +317,7 @@ class _MaterialsSectionState extends ConsumerState<MaterialsSection> {
       await action();
       if (context.mounted) showMessage(context, done);
     } catch (e) {
-      if (context.mounted) showMessage(context, '$e'.replaceFirst(RegExp(r'^(Bad state|Invalid argument\(s\)): '), ''), error: true);
+      if (context.mounted) showMessage(context, friendlyError(e), error: true);
     }
   }
 
@@ -375,36 +377,8 @@ class _MaterialsSectionState extends ConsumerState<MaterialsSection> {
     );
   }
 
-  Future<void> _raise(
-    BuildContext context,
-    List<ProjectPhase> phases,
-    InventorySummary s,
-    String today,
-    List<MaterialLine> prefill,
-  ) async {
-    final result = await showMaterialForm(
-      context,
-      kind: MaterialFormKind.indent,
-      summary: s,
-      today: today,
-      phases: phases,
-      prefill: prefill,
-      phaseId: _phaseId,
-    );
-    if (result == null || !context.mounted) return;
-    await _run(
-      context,
-      () => ref.read(inventoryRepositoryProvider).raiseIndent(
-        projectId: widget.project.id,
-        items: result.lines,
-        neededBy: result.date,
-        phaseId: result.phaseId,
-        note: result.note,
-        uid: ref.read(currentUserProvider).uid,
-      ),
-      'Indent sent for approval',
-    );
-  }
+  Future<void> _raise(BuildContext context, List<MaterialLine> prefill) =>
+      raiseIndentFlow(context, ref, widget.project, prefill: prefill, phaseId: _phaseId);
 
   Future<void> _receive(BuildContext context, InventorySummary s, String today, Indent? against) async {
     final result = await showMaterialForm(
