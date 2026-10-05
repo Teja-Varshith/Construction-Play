@@ -210,7 +210,7 @@ class _DprCalendarState extends State<DprCalendar> {
                   fontWeight: isToday || selected
                       ? FontWeight.w800
                       : FontWeight.w500,
-                  color: future ? const Color(0xFFB3BDC7) : null,
+                  color: future ? AppColors.subtle : null,
                 ),
               ),
               const SizedBox(height: 2),

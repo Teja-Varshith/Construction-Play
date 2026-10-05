@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/config/config_models.dart';
@@ -31,6 +32,7 @@ import 'project_editors.dart';
 import 'project_gantt.dart';
 import 'project_nav_scope.dart';
 import 'project_plain.dart';
+import '../../../core/router/app_shell.dart' show SideNavItem;
 import 'project_record_actions.dart';
 import 'project_reports.dart';
 import '../../inventory/data/inventory_repository.dart';
@@ -210,12 +212,32 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
       child: KeyedSubtree(key: ValueKey(current), child: page(current)),
     );
 
+    // Wide screens: the navy project menu runs full height on the left and
+    // the title bar sits over the content only.
+    Widget framed(Widget page) => wide
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ProjectSideNav(
+                insight: insight,
+                seeMoney: seeMoney,
+                statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
+                current: current,
+                visible: visible,
+                badge: badge,
+                onSelect: (t) => _open(ProjectLink(t)),
+              ),
+              Expanded(child: page),
+            ],
+          )
+        : page;
+
     return ProjectNavScope(
       projectId: project.id,
       current: _link,
       seq: _seq,
       onOpen: _open,
-      child: Scaffold(
+      child: framed(Scaffold(
         // On phones the day's main job stays one tap away instead of in the menu.
         floatingActionButton: report && ongoing && width < 700 &&
                 (current == ProjectTab.overview || current == ProjectTab.daily)
@@ -227,7 +249,8 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
             : null,
         appBar: AppBar(
           toolbarHeight: 64,
-          titleSpacing: 8,
+          automaticallyImplyLeading: !wide,
+          titleSpacing: wide ? 28 : 8,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -288,27 +311,8 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
                   ),
                 ),
         ),
-        body: SafeArea(
-          top: false,
-          child: wide
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ProjectSideNav(
-                      insight: insight,
-                      seeMoney: seeMoney,
-                      statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
-                      current: current,
-                      visible: visible,
-                      badge: badge,
-                      onSelect: (t) => _open(ProjectLink(t)),
-                    ),
-                    Expanded(child: content),
-                  ],
-                )
-              : content,
-        ),
-      ),
+        body: SafeArea(top: false, child: content),
+      )),
     );
   }
 }
@@ -337,138 +341,126 @@ class _ProjectSideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i = insight;
-    final health = i == null || i.stage != ProjectStage.ongoing || !i.scheduleReady ? ProjectHealth.noData : i.analysis.health;
-    return Container(
-      width: 236,
-      decoration: const BoxDecoration(
-        color: Color(0xFFFAFBFC),
-        border: Border(right: BorderSide(color: AppColors.line)),
-      ),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
+    final health = i == null || i.stage != ProjectStage.ongoing || !i.scheduleReady
+        ? ProjectHealth.noData
+        : i.analysis.health;
+    final plain = i == null ? null : PlainProject(i, seeMoney: seeMoney);
+    // Its own Material: on wide screens this menu sits outside the page's
+    // Scaffold, and text needs a Material ancestor for the theme's styles.
+    return Material(
+      color: AppColors.navy,
+      child: SizedBox(
+        width: 248,
+        child: SafeArea(
+          right: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
+            children: [
+              // Back to the company: the project menu replaces the main sidebar.
+              SideNavItem(
+                icon: Icons.arrow_back_rounded,
+                label: 'All projects',
+                selected: false,
+                onTap: () => context.canPop() ? context.pop() : context.go('/home'),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.navyRaised,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Pill(statusLabel),
-                    if (health != ProjectHealth.noData) VerdictPill(plain: PlainProject(i!, seeMoney: seeMoney)),
+                    Text(
+                      i?.project.name ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (plain != null && health != ProjectHealth.noData)
+                          VerdictPill(plain: plain)
+                        else
+                          Pill(statusLabel),
+                      ],
+                    ),
+                    if (i != null && i.scheduleReady) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${i.analysis.actual.toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'built · plan ${i.analysis.planned.toStringAsFixed(0)}%',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: AppColors.navyText, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: (i.analysis.actual / 100).clamp(0, 1).toDouble(),
+                          minHeight: 6,
+                          backgroundColor: AppColors.navy,
+                          color: health == ProjectHealth.noData ? AppColors.blue : healthColor(context, health),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                if (i != null && i.scheduleReady) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Text(
-                        '${i.analysis.actual.toStringAsFixed(0)}%',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              for (final (title, tabs) in _sectionGroups.where((g) => g.$2.any(visible))) ...[
+                if (title != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 20, 10, 8),
+                    child: Text(
+                      title.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF6F7BA0),
                       ),
-                      const SizedBox(width: 6),
-                      const Text('complete', style: TextStyle(color: _muted, fontSize: 12.5)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  PlanVsActualBar(
-                    actual: i.analysis.actual,
-                    planned: i.analysis.planned,
-                    color: healthColor(context, health),
-                    height: 6,
-                  ),
-                ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 12),
+                for (final t in tabs)
+                  if (visible(t))
+                    SideNavItem(
+                      icon: _sectionIcon(t),
+                      label: t.label,
+                      selected: t == current,
+                      badge: badge(t) ?? 0,
+                      badgeColor: context.statusColors.warn,
+                      onTap: () => onSelect(t),
+                    ),
               ],
-            ),
-          ),
-          for (final (title, tabs) in _sectionGroups) ...[
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
-                child: Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w700, color: _muted),
-                ),
-              ),
-            for (final t in tabs)
-              if (visible(t))
-                _SectionItem(
-                  tab: t,
-                  selected: t == current,
-                  badge: badge(t),
-                  onTap: () => onSelect(t),
-                ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionItem extends StatefulWidget {
-  const _SectionItem({required this.tab, required this.selected, required this.badge, required this.onTap});
-
-  final ProjectTab tab;
-  final bool selected;
-  final int? badge;
-  final VoidCallback onTap;
-
-  @override
-  State<_SectionItem> createState() => _SectionItemState();
-}
-
-class _SectionItemState extends State<_SectionItem> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final selected = widget.selected;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            color: selected
-                ? primary.withValues(alpha: 0.10)
-                : _hover
-                ? const Color(0xFFEFF2F6)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              Icon(_sectionIcon(widget.tab), size: 19, color: selected ? primary : _muted),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.tab.label,
-                  style: TextStyle(
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? primary : const Color(0xFF2B3743),
-                  ),
-                ),
-              ),
-              if ((widget.badge ?? 0) > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: context.statusColors.badSoft,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    '${widget.badge}',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: context.statusColors.bad),
-                  ),
-                ),
             ],
           ),
         ),

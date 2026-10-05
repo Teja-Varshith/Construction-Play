@@ -46,14 +46,16 @@ class AppShell extends ConsumerWidget {
 
     final width = MediaQuery.sizeOf(context).width;
     if (width >= 900) {
-      final inProject = _projectPage.hasMatch(location);
+      // A project has its own navy menu (with a way back), so the main
+      // sidebar steps aside: one sidebar on screen at a time.
+      if (_projectPage.hasMatch(location)) return child;
       return Scaffold(
         body: Row(
           children: [
             _Sidebar(
               items: items,
               index: index,
-              expanded: width >= 1200 && !inProject,
+              expanded: width >= 1100,
               badgeFor: badgeFor,
             ),
             Expanded(child: child),
@@ -142,7 +144,6 @@ class _Sidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
     final user = ref.watch(currentUserProvider);
     final company = ref.watch(appConfigProvider).company.name;
     final listed = items.where((i) => i.path != '/profile').toList();
@@ -157,22 +158,29 @@ class _Sidebar extends ConsumerWidget {
           children.add(
             expanded
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
+                    padding: const EdgeInsets.fromLTRB(14, 22, 12, 8),
                     child: Text(
                       item.group!.toUpperCase(),
-                      style: const TextStyle(fontSize: 11, letterSpacing: 0.9, fontWeight: FontWeight.w700, color: AppColors.muted),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF6F7BA0),
+                      ),
                     ),
                   )
                 : const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                    child: Divider(height: 1),
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                    child: Divider(height: 1, color: AppColors.navyRaised),
                   ),
           );
         }
       }
       children.add(
-        _SideItem(
-          item: item,
+        SideNavItem(
+          icon: item.icon,
+          selectedIcon: item.selectedIcon,
+          label: item.label,
           selected: items[index] == item,
           expanded: expanded,
           badge: badgeFor(item),
@@ -184,11 +192,8 @@ class _Sidebar extends ConsumerWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      width: expanded ? 252 : 76,
-      decoration: const BoxDecoration(
-        color: Color(0xFFFAFBFC),
-        border: Border(right: BorderSide(color: AppColors.line)),
-      ),
+      width: expanded ? 248 : 76,
+      color: AppColors.navy,
       child: SafeArea(
         right: false,
         child: Column(
@@ -197,56 +202,25 @@ class _Sidebar extends ConsumerWidget {
             InkWell(
               onTap: () => context.go('/home'),
               child: Padding(
-                padding: EdgeInsets.fromLTRB(expanded ? 18 : 0, 20, expanded ? 14 : 0, 18),
+                padding: EdgeInsets.fromLTRB(expanded ? 20 : 0, 22, expanded ? 14 : 0, 14),
                 child: expanded
-                    ? BrandLockup(name: company, tagline: 'Project control')
+                    ? BrandLockup(name: company, tagline: 'Project control', onDark: true)
                     : const Center(child: BrandMark(size: 38)),
               ),
             ),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 children: children,
               ),
             ),
-            const Divider(height: 1),
-            Material(
-              color: profileSelected ? scheme.primary.withValues(alpha: 0.08) : Colors.transparent,
-              child: InkWell(
-                onTap: () => context.go('/profile'),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: expanded ? 16 : 0, vertical: 14),
-                  child: Row(
-                    mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: 17,
-                        backgroundColor: scheme.primary.withValues(alpha: 0.12),
-                        foregroundColor: scheme.primary,
-                        child: Text(user.initials, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                      ),
-                      if (expanded) ...[
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user.name.isEmpty ? user.email : user.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                              ),
-                              Text(user.role.label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.unfold_more, size: 18, color: AppColors.muted),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+            SideUserCard(
+              initials: user.initials,
+              name: user.name.isEmpty ? user.email : user.name,
+              role: user.role.label,
+              expanded: expanded,
+              selected: profileSelected,
+              onTap: () => context.go('/profile'),
             ),
           ],
         ),
@@ -255,34 +229,44 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
-class _SideItem extends StatefulWidget {
-  const _SideItem({
-    required this.item,
+/// One row of the navy sidebar (also used by the project's own menu).
+class SideNavItem extends StatefulWidget {
+  const SideNavItem({
+    super.key,
+    required this.icon,
+    required this.label,
     required this.selected,
-    required this.expanded,
-    required this.badge,
     required this.onTap,
+    this.selectedIcon,
+    this.expanded = true,
+    this.badge = 0,
+    this.badgeColor,
   });
 
-  final NavItem item;
+  final IconData icon;
+  final IconData? selectedIcon;
+  final String label;
   final bool selected;
   final bool expanded;
   final int badge;
+
+  /// Defaults to red; the project menu uses amber for counts.
+  final Color? badgeColor;
   final VoidCallback onTap;
 
   @override
-  State<_SideItem> createState() => _SideItemState();
+  State<SideNavItem> createState() => _SideNavItemState();
 }
 
-class _SideItemState extends State<_SideItem> {
+class _SideNavItemState extends State<SideNavItem> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final selected = widget.selected;
-    final color = selected ? scheme.primary : AppColors.muted;
-    final icon = Icon(selected ? widget.item.selectedIcon : widget.item.icon, color: color, size: 21);
+    final color = selected ? Colors.white : AppColors.navyText;
+    final icon = Icon(selected ? (widget.selectedIcon ?? widget.icon) : widget.icon, color: color, size: 20);
+    final badgeColor = widget.badgeColor ?? context.statusColors.bad;
     final tile = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -292,17 +276,16 @@ class _SideItemState extends State<_SideItem> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          margin: const EdgeInsets.only(bottom: 3),
+          margin: const EdgeInsets.only(bottom: 4),
           padding: EdgeInsets.symmetric(horizontal: widget.expanded ? 12 : 0, vertical: 10),
           decoration: BoxDecoration(
             color: selected
-                ? Colors.white
+                ? AppColors.blue
                 : _hover
-                ? const Color(0xFFEFF2F6)
+                ? AppColors.navyRaised
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: selected ? AppColors.line : Colors.transparent),
-            boxShadow: selected ? const [BoxShadow(color: Color(0x0A16202A), blurRadius: 6, offset: Offset(0, 2))] : null,
+            borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+            boxShadow: selected ? const [BoxShadow(color: Color(0x553557D6), blurRadius: 14, offset: Offset(0, 4))] : null,
           ),
           child: Row(
             mainAxisAlignment: widget.expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
@@ -312,20 +295,32 @@ class _SideItemState extends State<_SideItem> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    widget.item.label,
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected ? AppColors.ink : const Color(0xFF3A4755),
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     ),
                   ),
                 ),
                 if (widget.badge > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                    decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(99)),
+                    constraints: const BoxConstraints(minWidth: 22),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : badgeColor,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                     child: Text(
                       '${widget.badge}',
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: selected ? AppColors.blue : Colors.white,
+                      ),
                     ),
                   ),
               ],
@@ -334,6 +329,78 @@ class _SideItemState extends State<_SideItem> {
         ),
       ),
     );
-    return widget.expanded ? tile : Tooltip(message: widget.item.label, child: tile);
+    return widget.expanded ? tile : Tooltip(message: widget.label, child: tile);
   }
+}
+
+/// The signed-in person at the foot of the sidebar; opens their profile.
+class SideUserCard extends StatelessWidget {
+  const SideUserCard({
+    super.key,
+    required this.initials,
+    required this.name,
+    required this.role,
+    required this.expanded,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String initials;
+  final String name;
+  final String role;
+  final bool expanded;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+    child: Material(
+      color: selected ? AppColors.navyRaised : const Color(0xFF172142),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: expanded ? 10 : 0, vertical: 10),
+          child: Row(
+            mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [Color(0xFFFFC94D), Color(0xFFFF8A4C)]),
+                ),
+                child: Text(
+                  initials,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.navy),
+                ),
+              ),
+              if (expanded) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                      ),
+                      Text(role, style: const TextStyle(color: AppColors.navyText, fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, size: 18, color: AppColors.navyText),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

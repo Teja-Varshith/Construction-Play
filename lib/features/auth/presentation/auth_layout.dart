@@ -120,7 +120,7 @@ class _AuthBrandPanel extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xFFE8EEF2),
-          border: Border.all(color: const Color(0xFFD7DEE7)),
+          border: Border.all(color: AppColors.line),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Stack(children: [

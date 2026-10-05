@@ -216,7 +216,12 @@ class PlainLineRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(line.icon, size: dense ? 17 : 19, color: color),
+          Container(
+            width: dense ? 22 : 26,
+            height: dense ? 22 : 26,
+            decoration: BoxDecoration(color: toneSoft(context, line.tone), borderRadius: BorderRadius.circular(7)),
+            child: Icon(line.icon, size: dense ? 14 : 16, color: color),
+          ),
           SizedBox(width: dense ? 8 : 10),
           Expanded(
             child: Text(
@@ -226,8 +231,8 @@ class PlainLineRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: dense ? 13 : 14,
                 height: 1.3,
-                color: line.tone == Tone.bad ? color : AppColors.ink,
-                fontWeight: line.tone == Tone.bad ? FontWeight.w600 : FontWeight.w400,
+                color: AppColors.inkSoft,
+                fontWeight: line.tone == Tone.bad ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ),

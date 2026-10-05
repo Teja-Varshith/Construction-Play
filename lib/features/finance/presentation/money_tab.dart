@@ -228,7 +228,7 @@ class _MoneyTabState extends ConsumerState<MoneyTab> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: overdue.isEmpty ? const Color(0xFFF4F6F9) : context.statusColors.badSoft,
+                          color: overdue.isEmpty ? AppColors.surfaceAlt : context.statusColors.badSoft,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -236,7 +236,7 @@ class _MoneyTabState extends ConsumerState<MoneyTab> {
                           '${overdue.isEmpty ? '. None is older than ${ProjectInsight.payableDueDays} days.' : ' · ${Money.compact(overdue.fold(0, (s, e) => s + e.amountPaise))} is more than ${ProjectInsight.payableDueDays} days old.'}',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: overdue.isEmpty ? const Color(0xFF354657) : context.statusColors.bad,
+                            color: overdue.isEmpty ? AppColors.inkSoft : context.statusColors.bad,
                           ),
                         ),
                       ),
@@ -452,7 +452,7 @@ class _CategoryRow extends StatelessWidget {
               child: LinearProgressIndicator(
                 minHeight: 7,
                 value: used == null ? 0 : (used / 100).clamp(0, 1),
-                backgroundColor: const Color(0xFFE6EBF0),
+                backgroundColor: AppColors.track,
                 valueColor: AlwaysStoppedAnimation(over ? context.statusColors.bad : Theme.of(context).colorScheme.primary),
               ),
             ),

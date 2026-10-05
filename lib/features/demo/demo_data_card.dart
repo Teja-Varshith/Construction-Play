@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -36,9 +38,9 @@ class _DemoDataCardState extends ConsumerState<DemoDataCard> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FB),
+            color: AppColors.surfaceAlt,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE3E8EE)),
+            border: Border.all(color: AppColors.line),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(

@@ -5,9 +5,9 @@ import '../../../core/theme/app_theme.dart';
 import '../domain/project_analysis.dart';
 import '../domain/project_detail.dart';
 
-const _line = Color(0xFFD7DEE7);
-const _muted = Color(0xFF596775);
-const _planned = Color(0xFFDCE4EE);
+const _line = AppColors.line;
+const _muted = AppColors.muted;
+const _planned = AppColors.line;
 
 /// Planned vs actual, one row per phase. The grey bar is the planned window;
 /// the coloured fill is actual completion, coloured by how far it trails the

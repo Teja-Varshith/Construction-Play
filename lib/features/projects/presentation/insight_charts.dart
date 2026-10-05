@@ -11,14 +11,14 @@ import '../../../core/utils/money.dart';
 class ChartColors {
   ChartColors._();
 
-  static const actual = Color(0xFF2A78D6);
-  static const planned = Color(0xFFA9B4C0);
-  static const pending = Color(0xFFEDA100);
-  static const remaining = Color(0xFFE3E8EE);
-  static const hold = Color(0xFF7C8CA0);
-  static const noData = Color(0xFFCBD3DC);
-  static const grid = Color(0xFFEDF1F5);
-  static const ink = Color(0xFF16202A);
+  static const actual = AppColors.blue;
+  static const planned = Color(0xFFC5CCDA);
+  static const pending = Color(0xFFF2A516);
+  static const remaining = AppColors.line;
+  static const hold = Color(0xFF9A8FD6);
+  static const noData = AppColors.subtle;
+  static const grid = AppColors.track;
+  static const ink = AppColors.ink;
 }
 
 const _labelStyle = TextStyle(fontSize: 11, color: AppColors.muted);
@@ -157,7 +157,7 @@ class _DonutChartState extends State<DonutChart> {
             child: Text(
               s.label,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12.5, color: Color(0xFF354657)),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft),
             ),
           ),
           const SizedBox(width: 6),
@@ -311,7 +311,7 @@ class PlanActualBars extends StatelessWidget {
                           text:
                               'Actual ${item.actual.toStringAsFixed(0)}% · Planned ${item.planned.toStringAsFixed(0)}%',
                           style: const TextStyle(
-                            color: Color(0xFFD2DFEC),
+                            color: AppColors.line,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -446,7 +446,7 @@ class OutputBars extends StatelessWidget {
             tooltipBorderRadius: BorderRadius.circular(8),
             getTooltipItem: (group, _, _, _) => BarTooltipItem(
               '${DateFormat('d MMM', 'en_IN').format(DateTime.parse(days[group.x].$1))}\n',
-              const TextStyle(color: Color(0xFFD2DFEC), fontSize: 11),
+              const TextStyle(color: AppColors.line, fontSize: 11),
               children: [
                 TextSpan(
                   text: '${days[group.x].$2.toStringAsFixed(0)}% of target',
@@ -605,7 +605,7 @@ class SpendCurve extends StatelessWidget {
                     for (final s in spots)
                       LineTooltipItem(
                         '${DateFormat('d MMM yyyy', 'en_IN').format(first.add(Duration(days: s.x.round())))}\n',
-                        const TextStyle(color: Color(0xFFD2DFEC), fontSize: 11),
+                        const TextStyle(color: AppColors.line, fontSize: 11),
                         children: [
                           TextSpan(
                             text: '${Money.compact(s.y.round())} spent',
@@ -824,7 +824,7 @@ class ChartLegend extends StatelessWidget {
                 color: color,
                 borderRadius: BorderRadius.circular(3),
                 border: color == ChartColors.remaining
-                    ? Border.all(color: const Color(0xFFCBD3DC))
+                    ? Border.all(color: AppColors.subtle)
                     : null,
               ),
             ),

@@ -29,22 +29,46 @@ class PageScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
+    // On wide screens the title is a page heading lined up with the content
+    // (no bar); phones keep a compact title bar.
+    final heading = wide && (title.isNotEmpty || (actions?.isNotEmpty ?? false))
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 22),
+            child: Row(
+              children: [
+                Expanded(
+                  child: titleWidget ??
+                      Text(title, style: Theme.of(context).textTheme.headlineMedium),
+                ),
+                ...?actions,
+              ],
+            ),
+          )
+        : null;
+    Widget column(Widget child) => heading == null
+        ? child
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: scrollable ? MainAxisSize.min : MainAxisSize.max,
+            children: [heading, if (scrollable) child else Expanded(child: child)],
+          );
     final content = Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: Padding(
-          padding: wide ? const EdgeInsets.fromLTRB(32, 12, 32, 40) : const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          child: body,
+          padding: wide ? const EdgeInsets.fromLTRB(36, 32, 36, 48) : const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          child: column(body),
         ),
       ),
     );
     return Scaffold(
-      appBar: AppBar(
-        title: titleWidget ?? Text(title),
-        titleSpacing: wide ? 32 : null,
-        actions: actions,
-      ),
+      appBar: wide
+          ? null
+          : AppBar(
+              title: titleWidget ?? Text(title),
+              actions: actions,
+            ),
       floatingActionButton: floatingActionButton,
       body: SafeArea(child: scrollable ? SingleChildScrollView(child: content) : content),
     );
@@ -139,20 +163,20 @@ class SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (title != null) ...[
             Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title!, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(title!, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                   if (subtitle != null)
                     Text(subtitle!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 ]),
               ),
               ?trailing,
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
           ],
           child,
         ]),
@@ -221,6 +245,67 @@ class Pill extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
       ),
+    );
+  }
+}
+
+/// The same Approve / Reject pair everywhere something waits on a decision:
+/// an optional link on the left, Reject then Approve on the right (split
+/// evenly on phones).
+class DecisionButtons extends StatelessWidget {
+  const DecisionButtons({
+    super.key,
+    required this.onApprove,
+    required this.onReject,
+    this.busy = false,
+    this.secondary,
+  });
+
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+  final bool busy;
+
+  /// e.g. "Open in project".
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    final bad = Theme.of(context).colorScheme.error;
+    final reject = OutlinedButton.icon(
+      onPressed: busy ? null : onReject,
+      style: OutlinedButton.styleFrom(foregroundColor: bad),
+      icon: const Icon(Icons.close_rounded, size: 18),
+      label: const Text('Reject'),
+    );
+    final approve = FilledButton.icon(
+      onPressed: busy ? null : onApprove,
+      icon: const Icon(Icons.check_rounded, size: 18),
+      label: const Text('Approve'),
+    );
+    return LayoutBuilder(
+      builder: (context, c) => c.maxWidth < 420
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: reject),
+                    const SizedBox(width: 8),
+                    Expanded(child: approve),
+                  ],
+                ),
+                if (secondary != null) Align(alignment: Alignment.centerLeft, child: secondary),
+              ],
+            )
+          : Row(
+              children: [
+                ?secondary,
+                const Spacer(),
+                reject,
+                const SizedBox(width: 8),
+                approve,
+              ],
+            ),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -106,7 +108,7 @@ class _ProjectCreateScreenState extends ConsumerState<ProjectCreateScreen> {
             Text(
               'Enter the core details, then assign its delivery team and starting phases.',
               style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: const Color(0xFF596775)),
+                  ?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 20),
             SectionCard(

@@ -184,23 +184,14 @@ class _IndentApprovalState extends ConsumerState<_IndentApproval> {
             Text(onSite.join(' · '), style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
           ],
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: [
-              FilledButton.icon(
-                onPressed: _busy ? null : () => _decide(true),
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Approve'),
-              ),
-              OutlinedButton(
-                onPressed: _busy ? null : () => _decide(false),
-                child: Text('Reject', style: TextStyle(color: context.statusColors.bad)),
-              ),
-              TextButton(
-                onPressed: () => context.push(ProjectLink(ProjectTab.materials, 'indent:${x.id}').path(widget.projectId)),
-                child: const Text('Open in project'),
-              ),
-            ],
+          DecisionButtons(
+            busy: _busy,
+            onApprove: () => _decide(true),
+            onReject: () => _decide(false),
+            secondary: TextButton(
+              onPressed: () => context.push(ProjectLink(ProjectTab.materials, 'indent:${x.id}').path(widget.projectId)),
+              child: const Text('Open in project'),
+            ),
           ),
         ],
       ),
@@ -228,7 +219,7 @@ class _ApprovalCardState extends ConsumerState<_ApprovalCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFD7DEE7))),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -241,12 +232,12 @@ class _ApprovalCardState extends ConsumerState<_ApprovalCard> {
                   children: [
                     Text(
                       widget.projectName,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(color: const Color(0xFF596775)),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AppColors.muted),
                     ),
                     Text(e.payee, style: const TextStyle(fontWeight: FontWeight.w900)),
                     Text(
                       '${widget.config.labelOf(ConfigList.expenseCategories, e.categoryId)} · ${WorkDay.display(e.date)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF596775)),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -274,23 +265,7 @@ class _ApprovalCardState extends ConsumerState<_ApprovalCard> {
             SizedBox(height: 140, width: 140, child: ProjectPhoto(path: e.billPath!)),
           ],
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _busy ? null : () => _decide(false),
-                  child: Text('Reject', style: TextStyle(color: context.statusColors.bad)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _busy ? null : () => _decide(true),
-                  child: const Text('Approve'),
-                ),
-              ),
-            ],
-          ),
+          DecisionButtons(busy: _busy, onApprove: () => _decide(true), onReject: () => _decide(false)),
         ],
       ),
     );

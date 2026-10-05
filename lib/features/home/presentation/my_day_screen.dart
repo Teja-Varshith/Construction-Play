@@ -11,6 +11,7 @@ import '../../inventory/presentation/material_actions.dart';
 import '../../projects/domain/project.dart';
 import '../../projects/presentation/ceo_ui.dart';
 import '../../projects/presentation/project_editors.dart';
+import '../../projects/presentation/project_plain.dart';
 import '../data/my_day_provider.dart';
 import '../domain/my_day.dart';
 
@@ -34,7 +35,8 @@ class _MyDayScreenState extends ConsumerState<MyDayScreen> {
     final hour = DateTime.now().hour;
     final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
     return PageScaffold(
-      title: 'My day',
+      // The banner greets the person; the bar only shows a title on phones.
+      title: MediaQuery.sizeOf(context).width < 900 ? 'My day' : '',
       body: AsyncView(
         value: day,
         data: (d) {
@@ -50,20 +52,14 @@ class _MyDayScreenState extends ConsumerState<MyDayScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '$greeting, ${user.name.split(' ').first}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                [
-                  WorkDay.display(d.today),
-                  if (now + today == 0)
-                    'nothing urgent'
-                  else
-                    '${now + today} thing${now + today == 1 ? '' : 's'} to do today',
-                ].join(' · '),
-                style: const TextStyle(color: AppColors.muted),
+              HeroBanner(
+                title: '$greeting, ${user.name.split(' ').first}',
+                subtitle: '${WorkDay.display(d.today)} · ${now + today == 0 ? 'nothing urgent today' : 'here is what needs you today'}',
+                stats: [
+                  HeroStat('$now', 'to do now', alert: now > 0),
+                  HeroStat('$today', 'later today'),
+                  HeroStat('${d.projects.length}', 'project${d.projects.length == 1 ? '' : 's'}'),
+                ],
               ),
               const SizedBox(height: 20),
               _QuickActions(data: d),
@@ -289,7 +285,15 @@ class _ActionTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: primary ? scheme.onPrimary : color, size: 24),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: primary ? Colors.white.withValues(alpha: 0.18) : color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, color: primary ? scheme.onPrimary : color, size: 21),
+              ),
               const SizedBox(height: 10),
               Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: fg, fontSize: 15)),
               const SizedBox(height: 2),
@@ -425,6 +429,8 @@ class _ProjectRow extends StatelessWidget {
     final a = i.analysis;
     final colors = context.statusColors;
     final ongoing = i.stage.name == 'ongoing';
+    final plain = PlainProject(i, seeMoney: project.access.seeMoney);
+    final tone = plain.tone == Tone.none ? Theme.of(context).colorScheme.primary : toneColor(context, plain.tone);
     return HoverCard(
       onTap: () => context.push('/projects/${i.project.id}'),
       padding: const EdgeInsets.all(14),
@@ -433,22 +439,16 @@ class _ProjectRow extends StatelessWidget {
         children: [
           Row(
             children: [
+              ProjectAvatar(name: i.project.name, color: tone, size: 38),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(i.project.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
               ),
-              if (ongoing) ProjectHealthPill(health: a.health) else Pill(i.stage.label),
+              if (plain.tone == Tone.none) Pill(i.stage.label) else VerdictPill(plain: plain),
             ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: (a.actual / 100).clamp(0, 1).toDouble(),
-              minHeight: 6,
-              backgroundColor: AppColors.line,
-              color: healthColor(context, a.health),
-            ),
-          ),
+          const SizedBox(height: 10),
+          ProgressMeter(actual: a.actual, planned: a.planned, color: tone),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -461,7 +461,7 @@ class _ProjectRow extends StatelessWidget {
               ),
               if (ongoing && project.access.report)
                 Text(
-                  project.reportedToday ? '✓ Report sent today' : 'No report today',
+                  project.reportedToday ? 'Report sent today' : 'No report today',
                   style: TextStyle(
                     color: project.reportedToday ? colors.ok : colors.warn,
                     fontSize: 12.5,

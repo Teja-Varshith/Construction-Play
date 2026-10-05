@@ -83,6 +83,15 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
   now"), and time / money / bills sentences. Home tiles, the project summary and the sidebar all use it, so they never
   disagree. Prefer sentences over metric jargon (no "cost overrun", "%/wk" on the CEO's first screens).
 - Clean, flat, rounded surfaces (`AppRadius`, `AppColors.line`, `appSoftShadow` in `app_theme.dart`); no NeoPop.
+- Font is Plus Jakarta Sans (bundled in `assets/fonts`, `kFontFamily`). Colours only from `AppColors` tokens
+  (ink / inkSoft / muted / subtle text, concrete page, surfaceAlt fills, line, track, blue + blueSoft brand, navy
+  sidebar) and `context.statusColors`; no raw hex in feature code. Component looks (buttons, chips, inputs, sheets,
+  dialogs) live in `AppTheme`, so don't restyle them per screen.
+- Navigation: one navy sidebar at a time. The main sidebar (`app_shell.dart`, `SideNavItem`, `SideUserCard`)
+  steps aside inside a project, whose own navy menu starts with "All projects". Phones use the bottom bar.
+- `PageScaffold` puts the page title as a heading inside the content on wide screens (title bar only on phones).
+- Home screens open with `HeroBanner`; projects are recognised by `ProjectAvatar`; anything awaiting a decision
+  uses `DecisionButtons` (Reject / Approve).
 - `HoverCard` / `NeoMetricCard` / `StageTile` in `ceo_ui.dart` are the shared card primitives.
 - Status colours (`context.statusColors`) only mean ok/warn/bad and always come with a text label.
 

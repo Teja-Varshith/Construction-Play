@@ -5,14 +5,14 @@ import '../../../core/utils/money.dart';
 import '../../../core/utils/work_day.dart';
 import '../domain/project_insight.dart';
 
-const _muted = Color(0xFF596775);
-const _line = Color(0xFFD7DEE7);
-const _track = Color(0xFFE6EBF0);
+const _muted = AppColors.muted;
+const _line = AppColors.line;
+const _track = AppColors.track;
 
 Color phaseStateColor(BuildContext context, PhaseState state) => switch (state) {
   PhaseState.done => context.statusColors.ok,
   PhaseState.onTrack => Theme.of(context).colorScheme.primary,
-  PhaseState.notStarted || PhaseState.noDates => const Color(0xFF8090A2),
+  PhaseState.notStarted || PhaseState.noDates => AppColors.subtle,
   PhaseState.slipping => context.statusColors.warn,
   PhaseState.behind || PhaseState.overdue => context.statusColors.bad,
 };
@@ -61,7 +61,7 @@ class PlanVsActualBar extends StatelessWidget {
                 left: (p - 1).clamp(0, w - 2),
                 top: 0,
                 bottom: 0,
-                child: Container(width: 2, color: const Color(0xFF17212B)),
+                child: Container(width: 2, color: AppColors.ink),
               ),
           ],
         ),
@@ -126,7 +126,7 @@ class BudgetBar extends StatelessWidget {
                   left: ((progressPct!.clamp(0, 100) / 100) * w - 1).clamp(0, w - 2).toDouble(),
                   top: 0,
                   bottom: 0,
-                  child: Container(width: 2, color: const Color(0xFF17212B)),
+                  child: Container(width: 2, color: AppColors.ink),
                 ),
             ],
           ),
@@ -259,7 +259,7 @@ class _FactorRowState extends State<_FactorRow> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
           decoration: BoxDecoration(
-            color: _hover && tappable ? const Color(0xFFF6F8FB) : Colors.transparent,
+            color: _hover && tappable ? AppColors.surfaceAlt : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
@@ -362,7 +362,7 @@ class PhaseBreakdown extends StatelessWidget {
                 decoration: const BoxDecoration(border: Border(top: BorderSide(color: _line))),
                 child: InkWell(
                   onTap: onOpen == null ? null : () => onOpen!(p),
-                  hoverColor: const Color(0xFFF6F8FB),
+                  hoverColor: AppColors.surfaceAlt,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                     child: wide ? _wideRow(context, p) : _narrowRow(context, p),
@@ -373,7 +373,7 @@ class PhaseBreakdown extends StatelessWidget {
             BarLegend(
               items: [
                 (Theme.of(context).colorScheme.primary, 'Done / spent'),
-                (const Color(0xFF17212B), 'Planned by today'),
+                (AppColors.ink, 'Planned by today'),
                 if (showMoney) (context.statusColors.warn.withValues(alpha: 0.45), 'Awaiting approval'),
               ],
             ),
@@ -466,7 +466,7 @@ class PhaseBreakdown extends StatelessWidget {
                     : '${Money.compact(p.remainingPaise)} left',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: p.overBudget ? context.statusColors.bad : const Color(0xFF17212B),
+                  color: p.overBudget ? context.statusColors.bad : AppColors.ink,
                 ),
               ),
             ],

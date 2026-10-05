@@ -360,7 +360,7 @@ class _ProjectCardFields extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 220),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F6FA),
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: _line),
               ),
@@ -369,7 +369,7 @@ class _ProjectCardFields extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFF354657),
+                  color: AppColors.inkSoft,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -497,4 +497,136 @@ class StageTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A small stat on the [HeroBanner]: a number and what it counts.
+class HeroStat {
+  const HeroStat(this.value, this.label, {this.alert = false});
+
+  final String value;
+  final String label;
+
+  /// Draws the chip in warm amber to catch the eye.
+  final bool alert;
+}
+
+/// The friendly top of a home screen: greeting, one line of context and a
+/// few stat chips on a soft brand gradient.
+class HeroBanner extends StatelessWidget {
+  const HeroBanner({super.key, required this.title, required this.subtitle, this.stats = const []});
+
+  final String title;
+  final String subtitle;
+  final List<HeroStat> stats;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      gradient: const LinearGradient(
+        colors: [Color(0xFF3557D6), Color(0xFF4B49C8), Color(0xFF6A4CC9)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      boxShadow: const [BoxShadow(color: Color(0x223557D6), blurRadius: 18, offset: Offset(0, 6))],
+    ),
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Soft decorative circles, purely visual.
+        Positioned(
+          right: -30,
+          top: -40,
+          child: Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.07)),
+          ),
+        ),
+        Positioned(
+          right: 70,
+          bottom: -60,
+          child: Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.05)),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+            ),
+            const SizedBox(height: 4),
+            Text(subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 14)),
+            if (stats.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in stats)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: s.alert ? const Color(0xFFFFC94D) : Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: s.value, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            TextSpan(text: ' ${s.label}'),
+                          ],
+                        ),
+                        style: TextStyle(
+                          color: s.alert ? const Color(0xFF3B2A00) : Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+/// A project's monogram ("LR" for Lakeview Residency) on a soft tile, so
+/// projects are recognisable at a glance. [color] is usually the verdict's.
+class ProjectAvatar extends StatelessWidget {
+  const ProjectAvatar({super.key, required this.name, required this.color, this.size = 42});
+
+  final String name;
+  final Color color;
+  final double size;
+
+  static String initialsOf(String name) {
+    final words = name.split(RegExp(r'[^A-Za-z0-9]+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return '?';
+    return (words.length == 1 ? words.first.substring(0, words.first.length.clamp(1, 2)) : '${words[0][0]}${words[1][0]}')
+        .toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(size * 0.3),
+    ),
+    child: Text(
+      initialsOf(name),
+      style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: size * 0.36, letterSpacing: -0.3),
+    ),
+  );
 }

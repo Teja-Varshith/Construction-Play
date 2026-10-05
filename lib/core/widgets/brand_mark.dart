@@ -26,7 +26,7 @@ class _BrandPainter extends CustomPainter {
       tile,
       Paint()
         ..shader = const LinearGradient(
-          colors: [Color(0xFF2E6BB5), AppColors.blue, Color(0xFF14365F)],
+          colors: [Color(0xFF5B7CFA), AppColors.blue, Color(0xFF2338A0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ).createShader(Offset.zero & size),
@@ -50,7 +50,7 @@ class _BrandPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(left + 2 * (w + gap) + w / 2, base - s * 0.54 - s * 0.1),
       s * 0.05,
-      Paint()..color = const Color(0xFFFFC857),
+      Paint()..color = const Color(0xFFFFC94D),
     );
   }
 
@@ -60,11 +60,14 @@ class _BrandPainter extends CustomPainter {
 
 /// The mark with the company name, for the sidebar and page headers.
 class BrandLockup extends StatelessWidget {
-  const BrandLockup({super.key, required this.name, this.tagline, this.size = 36});
+  const BrandLockup({super.key, required this.name, this.tagline, this.size = 36, this.onDark = false});
 
   final String name;
   final String? tagline;
   final double size;
+
+  /// White text, for the navy sidebar.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -81,14 +84,19 @@ class BrandLockup extends StatelessWidget {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, letterSpacing: -0.2, color: AppColors.ink),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15.5,
+                letterSpacing: -0.2,
+                color: onDark ? Colors.white : AppColors.ink,
+              ),
             ),
             if (tagline != null)
               Text(
                 tagline!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                style: TextStyle(fontSize: 11.5, color: onDark ? AppColors.navyText : AppColors.muted),
               ),
           ],
         ),

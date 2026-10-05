@@ -222,7 +222,7 @@ class _ReportCard extends StatelessWidget {
                 children: [
                   Icon(Icons.check, size: 15, color: context.statusColors.ok),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(line, style: const TextStyle(fontSize: 13, color: Color(0xFF354657)))),
+                  Expanded(child: Text(line, style: const TextStyle(fontSize: 13, color: AppColors.inkSoft))),
                 ],
               ),
             ),

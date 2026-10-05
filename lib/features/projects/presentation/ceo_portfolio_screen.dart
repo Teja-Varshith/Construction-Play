@@ -773,6 +773,11 @@ class _ProjectTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              ProjectAvatar(
+                name: p.name,
+                color: plain.tone == Tone.none ? Theme.of(context).colorScheme.primary : toneColor(context, plain.tone),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -788,11 +793,22 @@ class _ProjectTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              if (plain.tone == Tone.none) Pill(statusLabel) else VerdictPill(plain: plain),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (plain.tone == Tone.none) Pill(statusLabel) else VerdictPill(plain: plain),
+              if (plain.problemCount > 0 && plain.running) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '${plain.problemCount} thing${plain.problemCount == 1 ? '' : 's'} to look at',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
           if (measured) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1167,7 +1183,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               Text(
                 '${result.length} matching project${result.length == 1 ? '' : 's'}',
                 style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: const Color(0xFF596775)),
+                    ?.copyWith(color: AppColors.muted),
               ),
               const SizedBox(height: 18),
               TextField(
@@ -1552,7 +1568,7 @@ class _WatchRow extends StatelessWidget {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     return InkWell(
       onTap: () => context.push(factor.link.path(insight.project.id)),
-      hoverColor: const Color(0xFFF6F8FB),
+      hoverColor: AppColors.surfaceAlt,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -1710,17 +1726,17 @@ class _LeaderBrief extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('$greeting, $firstName', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Text(
-          [
-            '${portfolio.active.length} live project${portfolio.active.length == 1 ? '' : 's'}',
-            atRisk == 0 ? 'none at risk' : '$atRisk at risk',
-            if (portfolio.overduePayablesPaise > 0) '${Money.compact(portfolio.overduePayablesPaise)} of bills overdue',
-          ].join(' · '),
-          style: const TextStyle(color: AppColors.muted),
+        HeroBanner(
+          title: '$greeting, $firstName',
+          subtitle: 'Here is how your projects are doing today.',
+          stats: [
+            HeroStat('${portfolio.active.length}', 'live project${portfolio.active.length == 1 ? '' : 's'}'),
+            HeroStat(atRisk == 0 ? 'None' : '$atRisk', 'at risk', alert: atRisk > 0),
+            if (portfolio.overduePayablesPaise > 0)
+              HeroStat(Money.compact(portfolio.overduePayablesPaise), 'bills overdue', alert: true),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         decisionBlock,
         if (risks.isNotEmpty) ...[
           const SizedBox(height: 12),
