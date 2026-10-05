@@ -403,7 +403,7 @@ class DemoSeeder {
   /// Site stores through the real flow: indents raised (pending), most
   /// approved and received on a GRN, part issued to the work; one left
   /// waiting for approval, and on troubled projects one approved delivery
-  /// that is now overdue.
+  /// that is now overdue and only part delivered.
   Future<void> _seedStores(
     DocumentReference<Map<String, dynamic>> project,
     _Scenario s,
@@ -494,18 +494,41 @@ class DemoSeeder {
         issued[key] = (it.$1, it.$2, prev + it.$3);
       }
     }
-    // Issue most of what came in; a healthy project issues less, a busy one
-    // runs low on cement and steel.
-    final share = s.output >= 0.95 ? 0.7 : 0.88;
+    // A troubled project's late indent is part delivered: some steel came,
+    // the rest is still awaited, so the indent stays open (and late).
+    for (var n = 0; n < plan.length; n++) {
+      final (items, neededIn, fate) = plan[n];
+      if (fate != 'late') continue;
+      final first = items.first;
+      b3.set(project.collection('grns').doc(), {
+        'number': 'GRN-${s.code}-${(n + 1).toString().padLeft(3, '0')}A',
+        'items': [
+          {'material': first.$1, 'unit': first.$2, 'qty': (first.$3 * 0.6).roundToDouble(), 'ratePaise': first.$4},
+        ],
+        'vendor': vendors[0],
+        'invoiceNo': 'INV/${2600 + n * 37}',
+        'date': _key(today.add(Duration(days: neededIn - 1))),
+        'note': 'Part load. Balance promised next week.',
+        'indentId': refs[n].id,
+        'receivedBy': uid,
+        'revision': 1,
+        'demo': true,
+        ...auditCreate(uid),
+      });
+    }
+    // Issue most of what came in, some of it a while ago and some in the last
+    // two weeks (which sets the rate of use and so the days of stock left). A
+    // healthy project issues less; a busy one runs low on cement and steel.
     var slip = 0;
-    for (final e in issued.values) {
+    void issue(String material, String unit, double qty, int daysAgo) {
+      if (qty <= 0) return;
       slip++;
       b3.set(project.collection('materialIssues').doc(), {
         'number': 'MI-${s.code}-${slip.toString().padLeft(3, '0')}',
         'items': [
-          {'material': e.$1, 'unit': e.$2, 'qty': (e.$3 * share).roundToDouble()},
+          {'material': material, 'unit': unit, 'qty': qty.roundToDouble()},
         ],
-        'date': _key(today.subtract(Duration(days: 2 + slip))),
+        'date': _key(today.subtract(Duration(days: daysAgo))),
         'phaseId': phaseId,
         'issuedTo': slip.isEven ? 'Murugan shuttering crew' : 'Ramesh labour gang',
         'note': '',
@@ -514,6 +537,17 @@ class DemoSeeder {
         'demo': true,
         ...auditCreate(uid),
       });
+    }
+
+    var m = 0;
+    for (final e in issued.values) {
+      m++;
+      final critical = s.output < 0.95 && (e.$1.startsWith('Cement') || e.$1.startsWith('TMT'));
+      final share = critical ? 0.95 : (s.output >= 0.95 ? 0.7 : 0.8);
+      final recent = critical ? 0.4 : 0.25;
+      issue(e.$1, e.$2, e.$3 * (share - recent), 18 + m % 5);
+      issue(e.$1, e.$2, e.$3 * recent / 2, 9 + m % 3);
+      issue(e.$1, e.$2, e.$3 * recent / 2, 1 + m % 3);
     }
     await b3.commit();
   }

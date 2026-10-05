@@ -251,24 +251,36 @@ service cloud.firestore {
           && request.resource.data.requestedBy == request.auth.uid
           && request.resource.data.requestedAt == request.time
           && request.resource.data.revision == 1;
-        allow update: if projectOpen(pid) && auditOnUpdate() && validRevision() && (
+        // Each branch tests the status transition first, so only the matching
+        // branch evaluates the (costly) role lookups; rules stop at 1000
+        // evaluated expressions per request.
+        allow update: if (
           // the project manager or the CEO/admin decides a pending indent
-          ((isLeader() || manager(pid)) && resource.data.status == 'pending'
-            && request.resource.data.status in ['approved', 'rejected']
+          (resource.data.status == 'pending' && request.resource.data.status in ['approved', 'rejected']
             && request.resource.data.decidedBy == request.auth.uid
             && request.resource.data.decidedAt == request.time
             && request.resource.data.decisionNote is string
-            && changedOnly(['status', 'decidedBy', 'decidedAt', 'decisionNote', 'revision', 'updatedAt', 'updatedBy']))
-          // goods received against an approved indent close it
-          || (manager(pid) && resource.data.status == 'approved' && request.resource.data.status == 'received'
+            && changedOnly(['status', 'decidedBy', 'decidedAt', 'decisionNote', 'revision', 'updatedAt', 'updatedBy'])
+            && (isLeader() || manager(pid)))
+          // goods received against an approved indent complete it
+          || (resource.data.status == 'approved' && request.resource.data.status == 'received'
             && request.resource.data.grnId is string
-            && changedOnly(['status', 'grnId', 'receivedAt', 'revision', 'updatedAt', 'updatedBy']))
+            && changedOnly(['status', 'grnId', 'receivedAt', 'revision', 'updatedAt', 'updatedBy'])
+            && manager(pid))
+          // the manager or CEO/admin closes an approved indent short (rest not coming)
+          || (resource.data.status == 'approved' && request.resource.data.status == 'closed'
+            && request.resource.data.closeNote is string && request.resource.data.closeNote.size() > 0
+            && request.resource.data.closedBy == request.auth.uid
+            && request.resource.data.closedAt == request.time
+            && changedOnly(['status', 'closeNote', 'closedBy', 'closedAt', 'revision', 'updatedAt', 'updatedBy'])
+            && (isLeader() || manager(pid)))
           // the requester edits or withdraws their own pending indent
-          || (reporter(pid) && resource.data.status == 'pending' && request.resource.data.status == 'pending'
+          || (resource.data.status == 'pending' && request.resource.data.status == 'pending'
             && resource.data.requestedBy == request.auth.uid
             && validLines(request.resource.data.items)
-            && changedOnly(['items', 'neededBy', 'phaseId', 'note', 'deleted', 'revision', 'updatedAt', 'updatedBy']))
-        );
+            && changedOnly(['items', 'neededBy', 'phaseId', 'note', 'deleted', 'revision', 'updatedAt', 'updatedBy'])
+            && reporter(pid))
+        ) && auditOnUpdate() && validRevision() && projectOpen(pid);
         allow delete: if false;
       }
       match /grns/{id} {

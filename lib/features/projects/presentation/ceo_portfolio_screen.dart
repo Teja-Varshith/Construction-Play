@@ -12,6 +12,8 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/common.dart';
 import '../../auth/data/session.dart';
 import '../../auth/domain/app_user.dart';
+import '../../finance/data/finance_repository.dart';
+import '../../inventory/data/inventory_repository.dart';
 import '../../users/data/user_repository.dart';
 import '../data/project_insight_provider.dart';
 import '../data/project_repository.dart';
@@ -227,9 +229,14 @@ class _PortfolioBodyState extends ConsumerState<_PortfolioBody> {
             ),
           );
 
+    final leader = ref.watch(currentUserProvider).isCeo || ref.watch(currentUserProvider).isAdmin;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (leader) ...[
+          _LeaderBrief(portfolio: portfolio, firstName: widget.firstName),
+          const SizedBox(height: 28),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -397,7 +404,13 @@ class PortfolioInsightsScreen extends ConsumerWidget {
             style: TextStyle(color: AppColors.muted),
           ),
           const SizedBox(height: 16),
-          _Pillars(portfolio: p, onPick: (sort) => context.go('/home?sort=${sort.name}')),
+          _Pillars(
+            portfolio: p,
+            // Only the CEO's home is the portfolio; managers have it at /portfolio.
+            onPick: (sort) => context.go(
+              '${ref.read(currentUserProvider).isCeo ? '/home' : '/portfolio'}?sort=${sort.name}',
+            ),
+          ),
           const SizedBox(height: 24),
           if (p.active.isEmpty)
             const _EmptyPortfolio()
@@ -1599,6 +1612,159 @@ class _WatchRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// The top of the CEO's home: one sentence on the portfolio, the decisions
+/// waiting on them, and the few risks worth a look today. Everything else is
+/// further down for when there is time.
+class _LeaderBrief extends ConsumerWidget {
+  const _LeaderBrief({required this.portfolio, required this.firstName});
+
+  final PortfolioInsight portfolio;
+  final String firstName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.statusColors;
+    final expenses = ref.watch(visiblePendingExpensesProvider).value ?? const [];
+    final indents = ref.watch(visiblePendingIndentsProvider).value ?? const [];
+    final now = DateTime.now();
+    final oldest = [
+      for (final e in expenses)
+        if (e.submittedAt != null) now.difference(e.submittedAt!).inDays,
+      for (final (_, x) in indents) x.waitingDays(now),
+    ].fold(0, (m, d) => d > m ? d : m);
+    final decisions = expenses.length + indents.length;
+    final atRisk = portfolio.active.where((i) => i.analysis.health == ProjectHealth.red).length;
+    // The severe problems, worst projects first, one per project.
+    final risks = <(ProjectInsight, ProjectFactor)>[
+      for (final i in portfolio.active.toList()..sort((a, b) => healthRank(a.analysis.health).compareTo(healthRank(b.analysis.health))))
+        if (i.factors.where((f) => f.severe).firstOrNull case final f?) (i, f),
+    ].take(3).toList();
+    final hour = now.hour;
+    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+
+    final decisionCard = HoverCard(
+      onTap: decisions == 0 ? null : () => context.go('/approvals'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: (decisions == 0 ? colors.ok : (oldest >= 3 ? colors.bad : colors.warn)).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              decisions == 0 ? Icons.task_alt : Icons.fact_check_outlined,
+              color: decisions == 0 ? colors.ok : (oldest >= 3 ? colors.bad : colors.warn),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  decisions == 0 ? 'No approvals waiting' : '$decisions decision${decisions == 1 ? '' : 's'} waiting on you',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  decisions == 0
+                      ? 'Expenses and material requests that need you will show here.'
+                      : [
+                          if (expenses.isNotEmpty)
+                            '${expenses.length} expense${expenses.length == 1 ? '' : 's'} · ${Money.compact(expenses.fold(0, (s, e) => s + e.amountPaise))}',
+                          if (indents.isNotEmpty) '${indents.length} material request${indents.length == 1 ? '' : 's'}',
+                          if (oldest > 0) 'oldest $oldest day${oldest == 1 ? '' : 's'}',
+                        ].join(' · '),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          if (decisions > 0) ...[
+            const SizedBox(width: 12),
+            FilledButton(onPressed: () => context.go('/approvals'), child: const Text('Review')),
+          ],
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('$greeting, $firstName', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(
+          [
+            '${portfolio.active.length} live project${portfolio.active.length == 1 ? '' : 's'}',
+            atRisk == 0 ? 'none at risk' : '$atRisk at risk',
+            if (portfolio.overduePayablesPaise > 0) '${Money.compact(portfolio.overduePayablesPaise)} of bills overdue',
+          ].join(' · '),
+          style: const TextStyle(color: AppColors.muted),
+        ),
+        const SizedBox(height: 16),
+        decisionCard,
+        if (risks.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: AppRadius.card,
+              border: Border.all(color: AppColors.line),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text('Worth a look today', style: TextStyle(fontWeight: FontWeight.w800))),
+                      TextButton(onPressed: () => context.go('/watchlist'), child: const Text('All risks')),
+                    ],
+                  ),
+                ),
+                for (final (i, f) in risks)
+                  InkWell(
+                    onTap: () => context.push(f.link.path(i.project.id)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: colors.bad, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${i.project.name}: ${f.title}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(
+                                  f.detail,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: AppColors.muted),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

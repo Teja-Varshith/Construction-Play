@@ -58,6 +58,7 @@ class Expense {
     this.paidAt,
     this.paidBy,
     this.paymentRef = '',
+    this.grnId,
   });
 
   final String id;
@@ -96,6 +97,9 @@ class Expense {
 
   /// Cheque / UTR / transfer reference.
   final String paymentRef;
+
+  /// The goods received note (Materials) this bill was booked from.
+  final String? grnId;
 
   bool get isPaid => paidAt != null;
 
@@ -146,6 +150,7 @@ class Expense {
         paidAt: m.readDateTime('paidAt'),
         paidBy: m.readStringOrNull('paidBy'),
         paymentRef: m.readString('paymentRef'),
+        grnId: m.readStringOrNull('grnId'),
       );
 }
 

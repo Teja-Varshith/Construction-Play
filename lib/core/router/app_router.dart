@@ -153,6 +153,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
           GoRoute(path: '/insights', builder: (_, _) => const PortfolioInsightsScreen()),
+          // The portfolio tracker for managers, whose home is My day.
+          GoRoute(
+            path: '/portfolio',
+            builder: (_, state) => CeoPortfolioScreen(sort: state.uri.queryParameters['sort']),
+          ),
           GoRoute(path: '/watchlist', builder: (_, _) => const DelayWatchlistScreen()),
           GoRoute(path: '/organisation', builder: (_, _) => const OrganisationScreen()),
           GoRoute(

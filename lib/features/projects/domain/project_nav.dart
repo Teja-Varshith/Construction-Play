@@ -26,7 +26,8 @@ enum ProjectTab {
 /// Focus values each tab understands:
 /// - timeline: `phase:<phaseId>`
 /// - daily: `missing` (days with no report), `output` (output vs target)
-/// - materials: `pending`, `late`, `low` (stock), `indent:<id>`, `phase:<phaseId>`
+/// - materials: `pending`, `late`, `low` (stock), `unbooked` (deliveries not booked as expenses),
+///   `indent:<id>`, `phase:<phaseId>`
 /// - issues: `urgent` (open high/critical), `open`, `issue:<issueId>`, `phase:<phaseId>`
 /// - money: `pending` (awaiting approval), `payables`, `phase:<phaseId>`, `overspend`
 /// - info: `holds`

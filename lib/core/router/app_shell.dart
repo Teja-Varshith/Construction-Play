@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/session.dart';
 import '../../features/finance/data/finance_repository.dart';
+import '../../features/home/data/my_day_provider.dart';
+import '../../features/home/domain/my_day.dart';
 import '../../features/inventory/data/inventory_repository.dart';
 import '../config/config_repository.dart';
 import '../theme/app_theme.dart';
@@ -32,7 +34,15 @@ class AppShell extends ConsumerWidget {
         ? (ref.watch(visiblePendingExpensesProvider).value?.length ?? 0) +
               (ref.watch(visiblePendingIndentsProvider).value?.length ?? 0)
         : 0;
-    int badgeFor(NavItem item) => item.path == '/approvals' ? pending : 0;
+    // On-site roles: how many "Do now" tasks wait on My day.
+    final urgent = user.isCeo || user.isAdmin
+        ? 0
+        : (ref.watch(myDayProvider).value?.tasks.where((t) => t.urgency == DayUrgency.now).length ?? 0);
+    int badgeFor(NavItem item) => switch (item.path) {
+      '/approvals' => pending,
+      '/home' => urgent,
+      _ => 0,
+    };
 
     final width = MediaQuery.sizeOf(context).width;
     if (width >= 900) {

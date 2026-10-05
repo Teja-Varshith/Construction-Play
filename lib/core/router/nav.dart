@@ -14,15 +14,20 @@ class NavItem {
   final String? group;
 }
 
-/// Each role sees only its own short menu. Home is the project list for
-/// everyone except the office admin, whose home is the setup checklist.
+/// Each role sees only its own short menu. Home is the portfolio for the CEO,
+/// the setup checklist for the office admin, and My day for everyone on site.
 List<NavItem> navItemsFor(UserRole role) {
   final leader = role == UserRole.ceo || role == UserRole.admin;
   final lead = leader || role == UserRole.manager;
   return [
-    const NavItem('/home', 'Home', Icons.space_dashboard_outlined, Icons.space_dashboard),
+    if (leader)
+      const NavItem('/home', 'Home', Icons.space_dashboard_outlined, Icons.space_dashboard)
+    else
+      const NavItem('/home', 'My day', Icons.today_outlined, Icons.today),
     if (role == UserRole.admin)
       const NavItem('/projects', 'Projects', Icons.apartment_outlined, Icons.apartment),
+    if (role == UserRole.manager)
+      const NavItem('/portfolio', 'My projects', Icons.apartment_outlined, Icons.apartment, group: 'Portfolio'),
     if (lead) ...const [
       NavItem('/insights', 'Insights', Icons.insights_outlined, Icons.insights, group: 'Portfolio'),
       NavItem('/watchlist', 'Delay watchlist', Icons.crisis_alert_outlined, Icons.crisis_alert, group: 'Portfolio'),
@@ -48,6 +53,7 @@ const Map<String, Set<UserRole>> routeAccess = {
   '/approvals': {UserRole.ceo, UserRole.admin},
   '/organisation': {UserRole.ceo, UserRole.admin},
   '/insights': {UserRole.ceo, UserRole.admin, UserRole.manager},
+  '/portfolio': {UserRole.ceo, UserRole.admin, UserRole.manager},
   '/watchlist': {UserRole.ceo, UserRole.admin, UserRole.manager},
 };
 
