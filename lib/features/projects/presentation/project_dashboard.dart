@@ -15,9 +15,9 @@ import '../domain/project.dart';
 import '../domain/project_analysis.dart';
 import '../domain/project_insight.dart';
 import '../domain/project_nav.dart';
-import 'ceo_ui.dart';
 import 'insight_charts.dart';
 import 'insight_widgets.dart';
+import 'project_plain.dart';
 import 'project_nav_scope.dart';
 import 'project_record_actions.dart';
 
@@ -49,13 +49,15 @@ class ProjectDashboard extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(insight: i, statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId)),
-              const SizedBox(height: 16),
-              _Kpis(insight: i, seeMoney: seeMoney, open: open),
+              _Summary(
+                plain: PlainProject(i, seeMoney: seeMoney),
+                statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
+                open: open,
+              ),
               const SizedBox(height: 16),
               SectionCard(
-                title: factors.isEmpty ? 'What’s affecting this project' : 'What’s affecting this project · ${factors.length}',
-                subtitle: 'Reasons behind delays and cost pressure, most serious first. Open any to investigate.',
+                title: factors.isEmpty ? 'What needs attention' : 'What needs attention · ${factors.length}',
+                subtitle: 'Most serious first. Tap any to see the detail.',
                 trailing: TextButton.icon(
                   onPressed: () => open(const ProjectLink(ProjectTab.reports)),
                   icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
@@ -98,38 +100,38 @@ class ProjectTabPage extends StatelessWidget {
   );
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.insight, required this.statusLabel});
+/// The top of a project in plain words: the verdict, how much is built
+/// against the plan, then time, money and bills as sentences that each open
+/// the detail. Uses the same [PlainProject] wording as the home tiles.
+class _Summary extends StatelessWidget {
+  const _Summary({required this.plain, required this.statusLabel, required this.open});
 
-  final ProjectInsight insight;
+  final PlainProject plain;
   final String statusLabel;
+  final void Function(ProjectLink link) open;
 
   @override
   Widget build(BuildContext context) {
-    final i = insight;
+    final i = plain.insight;
     final a = i.analysis;
     final p = i.project;
-    final stage = i.stage;
-    final health = stage == ProjectStage.ongoing && !a.incomplete ? a.health : ProjectHealth.noData;
-    final accent = healthColor(context, health);
-    final headline = switch (stage) {
-      ProjectStage.onHold => 'On hold · schedule clock paused',
-      ProjectStage.completed => 'Completed',
-      ProjectStage.cancelled => 'Cancelled',
-      ProjectStage.pipeline => 'In the pipeline',
-      _ =>
-        a.incomplete
-            ? 'Schedule needs setting up'
-            : i.finished
-            ? 'All planned work is complete'
-            : a.health == ProjectHealth.green
-            ? 'Work is on track'
-            : a.daysBehind > 0
-            ? '${a.daysBehind} day${a.daysBehind == 1 ? '' : 's'} behind plan'
-            : 'Slightly behind plan',
-    };
-    final topFactor = i.active ? i.factors.where((f) => f.kind != FactorKind.setup).firstOrNull : null;
+    final colors = context.statusColors;
+    final color = toneColor(context, plain.tone == Tone.none ? Tone.ok : plain.tone);
     final daysLeft = i.daysLeft;
+    final problem = plain.mainProblem;
+    final lines = [
+      ...plain.lines,
+      if (!plain.seeMoney && i.active)
+        PlainLine(
+          Icons.flag_outlined,
+          i.openIssues == 0
+              ? 'No open site issues'
+              : '${i.openIssues} open site issue${i.openIssues == 1 ? '' : 's'}'
+                  '${i.urgentIssues > 0 ? ' · ${i.urgentIssues} high priority' : ''}',
+          i.urgentIssues > 0 ? Tone.bad : Tone.ok,
+          link: ProjectLink(ProjectTab.issues, i.urgentIssues > 0 ? 'urgent' : 'open'),
+        ),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -142,223 +144,95 @@ class _Header extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Wrap(
-            spacing: 24,
-            runSpacing: 16,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Pill(statusLabel, color: accent, background: healthSoftColor(context, health)),
-                        Text(
-                          [if (p.clientName.isNotEmpty) p.clientName, if (p.city.isNotEmpty) p.city].join(' · '),
-                          style: const TextStyle(color: _muted, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(headline, style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      a.incomplete
-                          ? 'Add planned dates and weights to every phase to measure progress and delay.'
-                          : '${a.actual.toStringAsFixed(0)}% complete · ${a.planned.toStringAsFixed(0)}% planned by today'
-                              '${i.timeUsedPct == null ? '' : ' · ${i.timeUsedPct!.clamp(0, 999).toStringAsFixed(0)}% of the time used'}',
-                      style: const TextStyle(color: _muted),
-                    ),
-                  ],
-                ),
-              ),
-              Wrap(
-                spacing: 28,
-                runSpacing: 12,
-                children: [
-                  _HeaderFact(label: 'Target finish', value: p.endDate == null ? 'Not set' : WorkDay.display(p.endDate)),
-                  if (i.forecastFinish != null && i.active)
-                    _HeaderFact(
-                      label: i.finishSlipDays > 0 ? 'Forecast (+${i.finishSlipDays} days)' : 'Forecast finish',
-                      value: displayDate(i.forecastFinish),
-                      color: i.finishSlipDays > 0 ? context.statusColors.bad : context.statusColors.ok,
-                    ),
-                  if (daysLeft != null && stage == ProjectStage.ongoing)
-                    _HeaderFact(
-                      label: daysLeft < 0 ? 'Overdue by' : 'Days left',
-                      value: '${daysLeft.abs()}',
-                      color: daysLeft < 0 ? context.statusColors.bad : null,
-                    ),
-                  if (p.contractValuePaise > 0)
-                    _HeaderFact(label: 'Contract value', value: Money.compact(p.contractValuePaise)),
-                ],
+              if (plain.tone == Tone.none) Pill(statusLabel) else VerdictPill(plain: plain),
+              Text(
+                [
+                  if (p.clientName.isNotEmpty) p.clientName,
+                  if (p.city.isNotEmpty) p.city,
+                  if (p.contractValuePaise > 0 && plain.seeMoney) 'contract ${Money.compact(p.contractValuePaise)}',
+                  if (daysLeft != null && plain.running)
+                    daysLeft >= 0 ? '$daysLeft days to the promised date' : 'promised date passed ${-daysLeft} days ago',
+                ].join(' · '),
+                style: const TextStyle(color: _muted, fontSize: 13),
               ),
             ],
           ),
-          if (!a.incomplete) ...[
-            const SizedBox(height: 18),
-            PlanVsActualBar(actual: a.actual, planned: a.planned, color: accent, height: 10),
-            const SizedBox(height: 6),
-            BarLegend(items: [(accent, 'Work done ${a.actual.toStringAsFixed(0)}%'), (AppColors.ink, 'Planned by today ${a.planned.toStringAsFixed(0)}%')]),
-          ],
-          if (topFactor != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: topFactor.severe ? context.statusColors.badSoft : context.statusColors.warnSoft,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    factorIcon(topFactor.kind),
-                    size: 18,
-                    color: topFactor.severe ? context.statusColors.bad : context.statusColors.warn,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'Main factor: ', style: TextStyle(fontWeight: FontWeight.w800)),
-                          TextSpan(text: topFactor.title),
-                        ],
-                      ),
+          const SizedBox(height: 14),
+          if (plain.running && i.scheduleReady) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${a.actual.toStringAsFixed(0)}%',
+                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, height: 1, letterSpacing: -0.5),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      plain.progress.replaceFirst(RegExp(r'^\d+% built · '), 'built · '),
+                      style: const TextStyle(color: _muted, fontSize: 14),
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ProgressMeter(actual: a.actual, planned: a.planned, color: color, height: 10),
+            const SizedBox(height: 4),
+            const Text('The dark mark shows where the work should be today.', style: TextStyle(color: _muted, fontSize: 11.5)),
+            const SizedBox(height: 14),
+          ] else if (plain.running) ...[
+            const Text(
+              'Add planned dates and weights to every phase so progress and delay can be measured.',
+              style: TextStyle(color: _muted),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (i.active) ...[
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            for (final line in lines)
+              PlainLineRow(line: line, onTap: line.link == null ? null : () => open(line.link!)),
+          ],
+          if (problem != null) ...[
+            const SizedBox(height: 10),
+            Material(
+              color: problem.severe ? colors.badSoft : colors.warnSoft,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: () => open(problem.link),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(factorIcon(problem.kind), size: 18, color: problem.severe ? colors.bad : colors.warn),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'Biggest problem: ', style: TextStyle(fontWeight: FontWeight.w800)),
+                              TextSpan(text: problem.title),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Text(problem.action, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700, fontSize: 13)),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _HeaderFact extends StatelessWidget {
-  const _HeaderFact({required this.label, required this.value, this.color});
-
-  final String label;
-  final String value;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
-      const SizedBox(height: 2),
-      Text(
-        value,
-        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: color ?? AppColors.ink),
-      ),
-    ],
-  );
-}
-
-/// The three things every project is judged on — cost overrun, payables and
-/// speed — plus the forecast finish. Each opens the place to act on it.
-class _Kpis extends StatelessWidget {
-  const _Kpis({required this.insight, required this.seeMoney, required this.open});
-
-  final ProjectInsight insight;
-  final bool seeMoney;
-  final void Function(ProjectLink link) open;
-
-  @override
-  Widget build(BuildContext context) {
-    final i = insight;
-    final colors = context.statusColors;
-    final pace = i.paceRatio;
-    final overrun = i.costOverrunPaise;
-    final overrunBad = i.budgetPaise > 0 && i.earnedPaise > 0 && overrun > i.earnedPaise * 0.05;
-    final eacOver = i.forecastOverrunPaise;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 900 ? 4 : constraints.maxWidth >= 520 ? 2 : 1;
-        final width = (constraints.maxWidth - (columns - 1) * 14) / columns;
-        Widget tile(Widget child) => SizedBox(width: width, child: child);
-        return Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            if (seeMoney) ...[
-              tile(NeoMetricCard(
-                label: 'Cost overrun',
-                value: i.budgetPaise == 0
-                    ? 'No budget'
-                    : overrun > 0
-                    ? Money.compact(overrun)
-                    : 'None',
-                caption: i.budgetPaise == 0
-                    ? 'Set a budget to track overrun'
-                    : 'Spent ${Money.compact(i.spentPaise)} for work worth ${Money.compact(i.earnedPaise)}'
-                        '${eacOver != null && eacOver > 0 ? ' · ${Money.compact(eacOver)} over at finish' : ''}',
-                icon: Icons.trending_up,
-                accent: overrunBad ? colors.bad : colors.ok,
-                onTap: () => open(const ProjectLink(ProjectTab.money, 'overspend')),
-              )),
-              tile(NeoMetricCard(
-                label: 'Payables',
-                value: i.payablesPaise == 0 ? 'None' : Money.compact(i.payablesPaise),
-                caption: i.payablesCount == 0
-                    ? 'All approved bills are paid'
-                    : '${i.payablesCount} unpaid bill${i.payablesCount == 1 ? '' : 's'}'
-                        '${i.overduePayablesCount > 0 ? ' · ${Money.compact(i.overduePayablesPaise)} over ${ProjectInsight.payableDueDays} days' : ''}',
-                icon: Icons.receipt_long_outlined,
-                accent: i.overduePayablesCount > 0 ? colors.bad : const Color(0xFF6C4BA5),
-                onTap: () => open(const ProjectLink(ProjectTab.money, 'payables')),
-              )),
-            ],
-            tile(NeoMetricCard(
-              label: 'Speed',
-              value: i.speedPerWeek == null ? '—' : '${i.speedPerWeek!.toStringAsFixed(1)}% / week',
-              caption: i.requiredPerWeek == null
-                  ? (i.scheduleReady ? 'No target date ahead' : 'Schedule not set')
-                  : 'Needs ${i.requiredPerWeek!.toStringAsFixed(1)}% / week to finish on time',
-              icon: Icons.speed,
-              accent: pace == null
-                  ? null
-                  : pace < 0.6
-                  ? colors.bad
-                  : pace < 0.85
-                  ? colors.warn
-                  : colors.ok,
-              onTap: () => open(const ProjectLink(ProjectTab.timeline)),
-            )),
-            tile(NeoMetricCard(
-              label: i.finishSlipDays > 0 ? 'Forecast finish · ${i.finishSlipDays} days late' : 'Forecast finish',
-              value: i.forecastFinish == null ? 'Not ready' : displayDate(i.forecastFinish),
-              caption: 'Target ${displayDateKey(i.project.endDate)}',
-              icon: Icons.flag_outlined,
-              accent: !i.scheduleReady
-                  ? null
-                  : i.finishSlipDays > 14
-                  ? colors.bad
-                  : i.finishSlipDays > 0
-                  ? colors.warn
-                  : colors.ok,
-              onTap: () => open(const ProjectLink(ProjectTab.timeline)),
-            )),
-            if (!seeMoney)
-              tile(NeoMetricCard(
-                label: 'Open issues',
-                value: '${i.openIssues}',
-                caption: i.urgentIssues > 0 ? '${i.urgentIssues} high priority' : 'None high priority',
-                icon: Icons.flag_outlined,
-                accent: i.urgentIssues > 0 ? colors.bad : null,
-                onTap: () => open(ProjectLink(ProjectTab.issues, i.urgentIssues > 0 ? 'urgent' : 'open')),
-              )),
-          ],
-        );
-      },
     );
   }
 }

@@ -30,6 +30,7 @@ import 'project_dashboard.dart';
 import 'project_editors.dart';
 import 'project_gantt.dart';
 import 'project_nav_scope.dart';
+import 'project_plain.dart';
 import 'project_record_actions.dart';
 import 'project_reports.dart';
 import '../../inventory/data/inventory_repository.dart';
@@ -295,6 +296,7 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
                   children: [
                     _ProjectSideNav(
                       insight: insight,
+                      seeMoney: seeMoney,
                       statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
                       current: current,
                       visible: visible,
@@ -316,6 +318,7 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
 class _ProjectSideNav extends StatelessWidget {
   const _ProjectSideNav({
     required this.insight,
+    required this.seeMoney,
     required this.statusLabel,
     required this.current,
     required this.visible,
@@ -324,6 +327,7 @@ class _ProjectSideNav extends StatelessWidget {
   });
 
   final ProjectInsight? insight;
+  final bool seeMoney;
   final String statusLabel;
   final ProjectTab current;
   final bool Function(ProjectTab) visible;
@@ -353,7 +357,7 @@ class _ProjectSideNav extends StatelessWidget {
                   runSpacing: 6,
                   children: [
                     Pill(statusLabel),
-                    if (health != ProjectHealth.noData) ProjectHealthPill(health: health),
+                    if (health != ProjectHealth.noData) VerdictPill(plain: PlainProject(i!, seeMoney: seeMoney)),
                   ],
                 ),
                 if (i != null && i.scheduleReady) ...[

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +24,8 @@ import '../domain/project_nav.dart';
 import 'ceo_ui.dart';
 import 'insight_charts.dart';
 import 'insight_widgets.dart';
+import 'project_plain.dart';
+import 'project_record_actions.dart';
 
 /// The CEO landing page: the whole portfolio's schedule and money at a glance,
 /// then every live project in one tracker, before any project detail.
@@ -151,129 +154,255 @@ class _PortfolioBodyState extends ConsumerState<_PortfolioBody> {
     return list;
   }
 
+  bool get _filtering => _stage != _StageFilter.all || _managerId != null || _sort != _HomeSort.attention || _query.trim().isNotEmpty;
+
+  void _clearFilters() {
+    _stage = _StageFilter.all;
+    _managerId = null;
+    _sort = _HomeSort.attention;
+  }
+
+  /// Stage, manager and sort in one sheet, so the home page itself stays a
+  /// plain list of projects.
+  Future<void> _showFilters(List<AppUser> managers, int Function(_StageFilter) countFor) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheet) => StatefulBuilder(
+      builder: (sheet, setSheet) {
+        void update(VoidCallback f) {
+          setState(f);
+          setSheet(() {});
+        }
+
+        Widget label(String t) => Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 8),
+          child: Text(t, style: const TextStyle(fontWeight: FontWeight.w800)),
+        );
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text('Filter and sort', style: Theme.of(sheet).textTheme.titleMedium),
+                    const Spacer(),
+                    TextButton(onPressed: () => update(_clearFilters), child: const Text('Reset')),
+                  ],
+                ),
+                label('Stage'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final f in _StageFilter.values)
+                      ChoiceChip(
+                        label: Text('${f.label} · ${countFor(f)}'),
+                        selected: _stage == f,
+                        onSelected: (_) => update(() => _stage = f),
+                      ),
+                  ],
+                ),
+                if (managers.isNotEmpty) ...[
+                  label('Project manager'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Everyone'),
+                        selected: _managerId == null,
+                        onSelected: (_) => update(() => _managerId = null),
+                      ),
+                      for (final m in managers)
+                        ChoiceChip(
+                          label: Text(m.name),
+                          selected: _managerId == m.uid,
+                          onSelected: (_) => update(() => _managerId = m.uid),
+                        ),
+                    ],
+                  ),
+                ],
+                label('Sort by'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final s in _HomeSort.values)
+                      ChoiceChip(label: Text(s.label), selected: _sort == s, onSelected: (_) => update(() => _sort = s)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                FilledButton(onPressed: () => Navigator.pop(sheet), child: const Text('Show projects')),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final portfolio = widget.portfolio;
     final all = portfolio.projects;
+    final user = ref.watch(currentUserProvider);
     final users = ref.watch(allUsersProvider).value ?? const <AppUser>[];
     final managers = users.where((u) => u.active && u.role == UserRole.manager).toList();
     int countFor(_StageFilter f) => all
         .where((i) => (f.stage == null || i.stage == f.stage) && (_managerId == null || i.project.managerId == _managerId))
         .length;
     final shown = _filtered(all);
-    final wide = MediaQuery.sizeOf(context).width >= 760;
+    final plains = {for (final i in all) i.project.id: PlainProject(i, seeMoney: canSeeMoney(user, i.project, i.stage))};
+    PlainProject plain(ProjectInsight i) => plains[i.project.id]!;
 
-    Widget control({required Widget child}) => Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: child,
-    );
-
-    final search = SizedBox(
-      width: wide ? 280 : double.infinity,
-      height: 40,
-      child: TextField(
-        onChanged: (v) => setState(() => _query = v),
-        decoration: const InputDecoration(
-          isDense: true,
-          prefixIcon: Icon(Icons.search, size: 20),
-          hintText: 'Search by name, client or city',
-          contentPadding: EdgeInsets.symmetric(vertical: 8),
-        ),
-      ),
-    );
-    final sort = PopupMenuButton<_HomeSort>(
-      tooltip: 'Sort projects',
-      initialValue: _sort,
-      onSelected: (s) => setState(() => _sort = s),
-      itemBuilder: (_) => [for (final s in _HomeSort.values) PopupMenuItem(value: s, child: Text(s.label))],
-      child: control(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    Widget grid(List<ProjectInsight> list) => LayoutBuilder(
+      builder: (context, c) {
+        final columns = c.maxWidth >= 1000 ? 3 : c.maxWidth >= 640 ? 2 : 1;
+        final width = (c.maxWidth - (columns - 1) * 16) / columns;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
           children: [
-            const Icon(Icons.swap_vert, size: 18, color: AppColors.muted),
-            const SizedBox(width: 6),
-            Text(_sort.label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const Icon(Icons.expand_more, size: 18, color: AppColors.muted),
+            for (final i in list)
+              SizedBox(
+                width: width,
+                child: _ProjectTile(
+                  plain: plain(i),
+                  statusLabel: widget.config.labelOf(ConfigList.projectStatuses, i.project.statusId),
+                  manager: users.where((u) => u.uid == i.project.managerId).firstOrNull?.name,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    // Unfiltered: projects grouped by what the chairman should do about them.
+    Widget groups() {
+      final running = shown.where((i) => i.stage == ProjectStage.ongoing).toList();
+      final attention = running.where((i) => plain(i).tone == Tone.bad || plain(i).tone == Tone.warn).toList();
+      mergeSort(attention, compare: (a, b) => (plain(a).tone == Tone.bad ? 0 : 1).compareTo(plain(b).tone == Tone.bad ? 0 : 1));
+      final fine = running.where((i) => plain(i).tone == Tone.ok).toList();
+      final paused = shown.where((i) => i.stage == ProjectStage.onHold || i.stage == ProjectStage.pipeline).toList();
+      final done = shown.where((i) => i.stage == ProjectStage.completed || i.stage == ProjectStage.cancelled).toList();
+      Widget section(String title, String note, List<ProjectInsight> list, {Color? dot}) => Padding(
+        padding: const EdgeInsets.only(bottom: 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (dot != null) ...[
+                  Container(width: 10, height: 10, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(width: 8),
+                Text('${list.length}', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(note, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+            const SizedBox(height: 12),
+            grid(list),
           ],
         ),
-      ),
-    );
-    final managerPicker = managers.isEmpty
-        ? const SizedBox.shrink()
-        : PopupMenuButton<String?>(
-            tooltip: 'Filter by manager',
-            onSelected: (v) => setState(() => _managerId = v == '' ? null : v),
-            itemBuilder: (_) => [
-              const PopupMenuItem<String?>(value: '', child: Text('All managers')),
-              for (final m in managers) PopupMenuItem<String?>(value: m.uid, child: Text(m.name)),
-            ],
-            child: control(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.person_outline, size: 18, color: AppColors.muted),
-                  const SizedBox(width: 6),
-                  Text(
-                    managers.where((m) => m.uid == _managerId).firstOrNull?.name ?? 'All managers',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const Icon(Icons.expand_more, size: 18, color: AppColors.muted),
-                ],
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (attention.isNotEmpty)
+            section('Needs your attention', 'Late, over budget, or with a serious problem. Tap one to see why.', attention,
+                dot: context.statusColors.bad),
+          if (fine.isNotEmpty)
+            section('On track', 'On time and within budget. Nothing needs you here.', fine, dot: context.statusColors.ok),
+          if (paused.isNotEmpty) section('On hold and not started', 'Not being built right now.', paused),
+          if (done.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _stage = _StageFilter.completed),
+                icon: const Icon(Icons.inventory_outlined, size: 18),
+                label: Text('Show ${done.length} finished project${done.length == 1 ? '' : 's'}'),
               ),
             ),
-          );
+        ],
+      );
+    }
 
-    final leader = ref.watch(currentUserProvider).isCeo || ref.watch(currentUserProvider).isAdmin;
+    final filters = [
+      if (_stage != _StageFilter.all) _stage.label,
+      if (_managerId != null) managers.where((m) => m.uid == _managerId).firstOrNull?.name ?? 'Manager',
+      if (_sort != _HomeSort.attention) _sort.label,
+    ];
+    final leader = user.isCeo || user.isAdmin;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (leader) ...[
           _LeaderBrief(portfolio: portfolio, firstName: widget.firstName),
-          const SizedBox(height: 28),
+          const SizedBox(height: 32),
         ],
+        Text('Projects', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 2),
+        Text(
+          '${portfolio.active.length} live · ${all.where((i) => i.stage == ProjectStage.pipeline).length} not started',
+          style: const TextStyle(color: AppColors.muted),
+        ),
+        const SizedBox(height: 14),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Projects', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${portfolio.active.length} live · ${all.where((i) => i.stage == ProjectStage.pipeline).length} in pipeline',
-                    style: const TextStyle(color: AppColors.muted),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: SizedBox(
+                    height: 42,
+                    child: TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        prefixIcon: Icon(Icons.search, size: 20),
+                        hintText: 'Find a project, client or city',
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
-            if (wide) search,
-          ],
-        ),
-        const SizedBox(height: 18),
-        if (!wide) ...[search, const SizedBox(height: 12)],
-        // Stage tabs on the left, manager and sort on the right.
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _StageTabs(
-              current: _stage,
-              count: countFor,
-              onSelect: (f) => setState(() => _stage = f),
+            const SizedBox(width: 10),
+            Badge(
+              isLabelVisible: filters.isNotEmpty,
+              label: Text('${filters.length}'),
+              child: OutlinedButton.icon(
+                onPressed: () => _showFilters(managers, countFor),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42)),
+                icon: const Icon(Icons.tune, size: 18),
+                label: const Text('Filter'),
+              ),
             ),
-            Wrap(spacing: 10, runSpacing: 10, children: [managerPicker, sort]),
           ],
         ),
-        const SizedBox(height: 18),
+        if (filters.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final f in filters) Chip(label: Text(f), visualDensity: VisualDensity.compact),
+              TextButton(onPressed: () => setState(_clearFilters), child: const Text('Clear')),
+            ],
+          ),
+        ],
+        const SizedBox(height: 22),
         if (all.isEmpty)
           const _EmptyPortfolio()
         else if (shown.isEmpty)
@@ -284,102 +413,18 @@ class _PortfolioBodyState extends ConsumerState<_PortfolioBody> {
               children: [
                 Icon(Icons.search_off, color: AppColors.muted, size: 32),
                 SizedBox(height: 8),
-                Text('No projects match. Try another stage or manager, or clear the search.', style: TextStyle(color: AppColors.muted)),
+                Text('No projects match. Clear the search or the filters.', style: TextStyle(color: AppColors.muted)),
               ],
             ),
           )
+        else if (_filtering)
+          grid(shown)
         else
-          LayoutBuilder(
-            builder: (context, c) {
-              final columns = c.maxWidth >= 1000 ? 3 : c.maxWidth >= 640 ? 2 : 1;
-              final width = (c.maxWidth - (columns - 1) * 16) / columns;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final i in shown)
-                    SizedBox(
-                      width: width,
-                      child: _ProjectTile(
-                        insight: i,
-                        statusLabel: widget.config.labelOf(ConfigList.projectStatuses, i.project.statusId),
-                        manager: users.where((u) => u.uid == i.project.managerId).firstOrNull?.name,
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        const SizedBox(height: 72),
+          groups(),
+        const SizedBox(height: 48),
       ],
     );
   }
-}
-
-/// A segmented control of project stages with counts.
-class _StageTabs extends StatelessWidget {
-  const _StageTabs({required this.current, required this.count, required this.onSelect});
-
-  final _StageFilter current;
-  final int Function(_StageFilter) count;
-  final ValueChanged<_StageFilter> onSelect;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF1F4F8),
-      borderRadius: BorderRadius.circular(11),
-    ),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final f in _StageFilter.values)
-            GestureDetector(
-              onTap: () => onSelect(f),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: current == f ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: current == f
-                        ? const [BoxShadow(color: Color(0x1416202A), blurRadius: 6, offset: Offset(0, 2))]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        f.label,
-                        style: TextStyle(
-                          fontWeight: current == f ? FontWeight.w700 : FontWeight.w500,
-                          color: current == f ? AppColors.ink : AppColors.muted,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${count(f)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: current == f ? Theme.of(context).colorScheme.primary : AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -702,40 +747,23 @@ class _HeadCard extends StatelessWidget {
   }
 }
 
-/// One project on the home screen: where it stands, when it will finish, the
-/// money left, and the main thing holding it back (a link to investigate).
+/// One project on the home screen, in plain words: how far it is, whether it
+/// is on time, whether the money is fine, and the main problem (a link).
 class _ProjectTile extends StatelessWidget {
-  const _ProjectTile({required this.insight, required this.statusLabel, required this.manager});
+  const _ProjectTile({required this.plain, required this.statusLabel, required this.manager});
 
-  final ProjectInsight insight;
+  final PlainProject plain;
   final String statusLabel;
   final String? manager;
 
   @override
   Widget build(BuildContext context) {
-    final i = insight;
+    final i = plain.insight;
     final p = i.project;
     final a = i.analysis;
-    final health = i.stage == ProjectStage.ongoing ? a.health : ProjectHealth.noData;
-    final color = healthColor(context, health);
-    final factor = i.active ? i.factors.firstOrNull : null;
-    final live = i.stage == ProjectStage.ongoing || i.stage == ProjectStage.onHold;
-
-    Widget fact(String label, String value, {Color? valueColor}) => Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
-          const SizedBox(height: 1),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: valueColor ?? AppColors.ink),
-          ),
-        ],
-      ),
-    );
+    final color = toneColor(context, plain.tone == Tone.none ? Tone.ok : plain.tone);
+    final problem = plain.mainProblem;
+    final measured = plain.running && i.scheduleReady;
 
     return HoverCard(
       onTap: () => context.push('/projects/${p.id}'),
@@ -749,15 +777,10 @@ class _ProjectTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      p.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
-                      [if (p.clientName.isNotEmpty) p.clientName, if (p.city.isNotEmpty) p.city, ?manager].join(' · '),
+                      [if (p.city.isNotEmpty) p.city, ?manager].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
@@ -766,111 +789,87 @@ class _ProjectTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (i.stage == ProjectStage.ongoing && i.scheduleReady)
-                ProjectHealthPill(health: health)
-              else
-                Pill(statusLabel),
+              if (plain.tone == Tone.none) Pill(statusLabel) else VerdictPill(plain: plain),
             ],
           ),
-          const SizedBox(height: 16),
-          if (live) ...[
+          const SizedBox(height: 14),
+          if (measured) ...[
             Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  i.scheduleReady ? '${a.actual.toStringAsFixed(0)}%' : '—',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.ink),
+                  '${a.actual.toStringAsFixed(0)}%',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    i.scheduleReady
-                        ? '${i.scheduleLabel} · finish ${i.forecastFinish == null ? displayDateKey(p.endDate) : displayDate(i.forecastFinish)}'
-                              '${i.finishSlipDays > 0 ? ' (+${i.finishSlipDays}d)' : ''}'
-                        : 'Schedule not set',
+                    plain.progress.replaceFirst(RegExp(r'^\d+% built · '), 'built · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12.5, color: health == ProjectHealth.green ? AppColors.muted : color),
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 6),
-            PlanVsActualBar(actual: a.actual, planned: a.planned, color: color, height: 7),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                fact(
-                  'Cost overrun',
-                  i.budgetPaise == 0
-                      ? 'No budget'
-                      : i.costOverrunPaise > 0
-                      ? Money.compact(i.costOverrunPaise)
-                      : 'None',
-                  valueColor: i.costOverrunPaise > i.earnedPaise * 0.05 && i.budgetPaise > 0 ? context.statusColors.bad : null,
-                ),
-                fact(
-                  i.overduePayablesCount > 0 ? 'Payables · ${Money.compact(i.overduePayablesPaise)} late' : 'Payables',
-                  i.payablesPaise == 0 ? 'None' : Money.compact(i.payablesPaise),
-                  valueColor: i.overduePayablesCount > 0 ? context.statusColors.bad : null,
-                ),
-                fact(
-                  i.requiredPerWeek == null ? 'Speed' : 'Speed · need ${i.requiredPerWeek!.toStringAsFixed(1)}',
-                  i.speedPerWeek == null ? '—' : '${i.speedPerWeek!.toStringAsFixed(1)}%/wk',
-                  valueColor: (i.paceRatio ?? 1) < 0.6
-                      ? context.statusColors.bad
-                      : (i.paceRatio ?? 1) < 0.85
-                      ? context.statusColors.warn
-                      : null,
-                ),
-              ],
-            ),
-          ] else
-            Row(
-              children: [
-                fact('Stage', statusLabel),
-                fact('Value', p.contractValuePaise == 0 ? '—' : Money.compact(p.contractValuePaise)),
-                fact(
-                  i.stage == ProjectStage.pipeline ? 'Planned start' : 'Finished',
-                  i.stage == ProjectStage.pipeline ? displayDateKey(p.startDate) : displayDateKey(p.endDate),
-                ),
-              ],
-            ),
-          if (live) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1),
+            ProgressMeter(actual: a.actual, planned: a.planned, color: color),
             const SizedBox(height: 10),
-            if (factor == null)
-              Row(
-                children: [
-                  Icon(Icons.check_circle_outline, size: 16, color: context.statusColors.ok),
-                  const SizedBox(width: 6),
-                  const Text('Nothing flagged', style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
-                ],
-              )
-            else
-              InkWell(
-                onTap: () => context.push(factor.link.path(p.id)),
-                borderRadius: BorderRadius.circular(6),
-                child: Row(
-                  children: [
-                    Icon(
-                      factorIcon(factor.kind),
-                      size: 16,
-                      color: factor.severe ? context.statusColors.bad : context.statusColors.warn,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        i.factors.length > 1 ? '${factor.title} · +${i.factors.length - 1} more' : factor.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF354657)),
+          ],
+          if (i.stage == ProjectStage.pipeline)
+            Text(
+              [
+                if (p.contractValuePaise > 0) 'Contract ${Money.compact(p.contractValuePaise)}',
+                'starts ${displayDateKey(p.startDate)}',
+              ].join(' · '),
+              style: const TextStyle(fontSize: 13, color: AppColors.ink),
+            )
+          else if (i.active)
+            for (final line in plain.lines) PlainLineRow(line: line, dense: true)
+          else
+            Text('$statusLabel · ${displayDateKey(p.endDate)}', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+          if (i.active && problem != null) ...[
+            const SizedBox(height: 10),
+            Material(
+              color: problem.severe ? context.statusColors.badSoft : context.statusColors.warnSoft,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () => context.push(problem.link.path(p.id)),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        factorIcon(problem.kind),
+                        size: 16,
+                        color: problem.severe ? context.statusColors.bad : context.statusColors.warn,
                       ),
-                    ),
-                    Icon(Icons.arrow_forward, size: 15, color: Theme.of(context).colorScheme.primary),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          problem.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+                        ),
+                      ),
+                      if (plain.problemCount > 1)
+                        Text('+${plain.problemCount - 1} more', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ],
+                  ),
                 ),
               ),
+            ),
+          ] else if (plain.running) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline, size: 16, color: context.statusColors.ok),
+                const SizedBox(width: 6),
+                const Text('No problems flagged', style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
+              ],
+            ),
           ],
         ],
       ),
@@ -1638,12 +1637,14 @@ class _LeaderBrief extends ConsumerWidget {
       for (final (_, x) in indents) x.waitingDays(now),
     ].fold(0, (m, d) => d > m ? d : m);
     final decisions = expenses.length + indents.length;
-    final atRisk = portfolio.active.where((i) => i.analysis.health == ProjectHealth.red).length;
+    // Same verdict as the project tiles below, so the numbers agree.
+    final atRisk = portfolio.active.where((i) => PlainProject(i, seeMoney: true).tone == Tone.bad).length;
     // The severe problems, worst projects first, one per project.
     final risks = <(ProjectInsight, ProjectFactor)>[
       for (final i in portfolio.active.toList()..sort((a, b) => healthRank(a.analysis.health).compareTo(healthRank(b.analysis.health))))
         if (i.factors.where((f) => f.severe).firstOrNull case final f?) (i, f),
     ].take(3).toList();
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     final hour = now.hour;
     final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
 
@@ -1687,13 +1688,24 @@ class _LeaderBrief extends ConsumerWidget {
               ],
             ),
           ),
-          if (decisions > 0) ...[
+          if (decisions > 0 && !narrow) ...[
             const SizedBox(width: 12),
             FilledButton(onPressed: () => context.go('/approvals'), child: const Text('Review')),
           ],
         ],
       ),
     );
+    // On phones the button goes under the card, so the sentence has room.
+    final decisionBlock = decisions > 0 && narrow
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              decisionCard,
+              const SizedBox(height: 8),
+              FilledButton(onPressed: () => context.go('/approvals'), child: const Text('Review approvals')),
+            ],
+          )
+        : decisionCard;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1709,7 +1721,7 @@ class _LeaderBrief extends ConsumerWidget {
           style: const TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 16),
-        decisionCard,
+        decisionBlock,
         if (risks.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(

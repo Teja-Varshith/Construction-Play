@@ -78,6 +78,10 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
   transition first and the role functions last (see `indents`).
 
 ## UI conventions
+- Chairman/CEO wording comes from `PlainProject` (`presentation/project_plain.dart`): one verdict (At risk / Needs
+  attention / On track; "at risk" only for serious time or money problems), progress ("50% built · should be 54% by
+  now"), and time / money / bills sentences. Home tiles, the project summary and the sidebar all use it, so they never
+  disagree. Prefer sentences over metric jargon (no "cost overrun", "%/wk" on the CEO's first screens).
 - Clean, flat, rounded surfaces (`AppRadius`, `AppColors.line`, `appSoftShadow` in `app_theme.dart`); no NeoPop.
 - `HoverCard` / `NeoMetricCard` / `StageTile` in `ceo_ui.dart` are the shared card primitives.
 - Status colours (`context.statusColors`) only mean ok/warn/bad and always come with a text label.
