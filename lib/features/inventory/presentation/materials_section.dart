@@ -26,6 +26,7 @@ import 'indent_dialogs.dart';
 import 'material_actions.dart';
 import 'material_form_dialog.dart';
 import 'stock_ledger_sheet.dart';
+import '../../../core/widgets/art.dart';
 
 enum _View {
   indents('Indents', Icons.assignment_outlined),
@@ -891,8 +892,8 @@ class _Empty extends StatelessWidget {
     decoration: BoxDecoration(borderRadius: AppRadius.card, border: Border.all(color: AppColors.line)),
     child: Column(
       children: [
-        Icon(icon, size: 32, color: AppColors.muted),
-        const SizedBox(height: 10),
+        const Illustration(Art.emptyBlueprint, height: 96),
+        const SizedBox(height: 12),
         Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
         if (action != null) ...[const SizedBox(height: 8), action!],
       ],

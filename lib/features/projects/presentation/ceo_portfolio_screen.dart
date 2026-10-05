@@ -26,6 +26,7 @@ import 'insight_charts.dart';
 import 'insight_widgets.dart';
 import 'project_plain.dart';
 import 'project_record_actions.dart';
+import '../../../core/widgets/art.dart';
 
 /// The CEO landing page: the whole portfolio's schedule and money at a glance,
 /// then every live project in one tracker, before any project detail.
@@ -1047,13 +1048,13 @@ class _EmptyPortfolio extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(32),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: AppRadius.card,
       border: Border.all(color: AppColors.line),
     ),
     child: Column(
       children: [
-        const Icon(Icons.domain_add_outlined, size: 42, color: AppColors.muted),
+        const Illustration(Art.emptyPlot, height: 150),
         const SizedBox(height: 12),
         Text(
           'No live projects yet',

@@ -4,21 +4,22 @@ enum ProjectTab {
   overview('overview', 'Insight'),
   reports('reports', 'Reports'),
   timeline('timeline', 'Timeline'),
-  team('team', 'Team'),
+  profile('profile', 'Site profile'),
   daily('daily', 'Daily progress'),
   materials('materials', 'Materials'),
   issues('issues', 'Issues'),
   documents('documents', 'Documents & photos'),
   money('money', 'Money'),
-  info('info', 'Info'),
+  info('info', 'Details & history'),
   activity('activity', 'Activity');
 
   const ProjectTab(this.slug, this.label);
   final String slug;
   final String label;
 
-  static ProjectTab fromSlug(String? slug) =>
-      ProjectTab.values.firstWhere((t) => t.slug == slug, orElse: () => ProjectTab.overview);
+  static ProjectTab fromSlug(String? slug) => slug == 'team'
+      ? ProjectTab.profile // the old Team page is part of the site profile
+      : ProjectTab.values.firstWhere((t) => t.slug == slug, orElse: () => ProjectTab.overview);
 }
 
 /// Where to go to investigate something: a tab, plus what to focus on in it.

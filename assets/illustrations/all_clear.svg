@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 170">
+  <ellipse cx="120" cy="150" rx="86" ry="10" fill="#E6E9F1"/>
+  <!-- hard hat -->
+  <path d="M60 128C60 86 86 58 120 58C154 58 180 86 180 128Z" fill="#FFC94D"/>
+  <path d="M110 58H130V124H110Z" fill="#F2A516"/>
+  <rect x="44" y="124" width="152" height="16" rx="8" fill="#F2A516"/>
+  <path d="M76 120C78 98 90 80 106 72" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <!-- check badge -->
+  <circle cx="176" cy="54" r="26" fill="#12855A"/>
+  <path d="M164 54L173 63L189 46" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- confetti -->
+  <g>
+    <rect x="40" y="40" width="10" height="10" rx="2" fill="#5B7CFA" transform="rotate(20 45 45)"/>
+    <rect x="200" y="104" width="9" height="9" rx="2" fill="#FF8A4C" transform="rotate(-15 204 108)"/>
+    <circle cx="88" cy="30" r="5" fill="#FF8A4C"/>
+    <circle cx="212" cy="20" r="4" fill="#3557D6"/>
+    <circle cx="30" cy="96" r="4" fill="#FFC94D"/>
+    <path d="M140 18L144 26L152 28L144 30L140 38L136 30L128 28L136 26Z" fill="#5B7CFA"/>
+  </g>
+</svg>

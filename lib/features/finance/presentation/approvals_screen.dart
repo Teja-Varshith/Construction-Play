@@ -21,6 +21,7 @@ import '../../inventory/domain/inventory.dart';
 import '../../inventory/presentation/indent_dialogs.dart';
 import '../../projects/domain/project_nav.dart';
 import '../../users/data/user_repository.dart';
+import '../../../core/widgets/art.dart';
 
 /// Everything waiting on the CEO or admin across the whole portfolio:
 /// material indents first (they hold up work on site), then expenses.
@@ -43,6 +44,7 @@ class ApprovalsScreen extends ConsumerWidget {
         data: (items) => items.isEmpty && indents.isEmpty
             ? const MessageView(
                 icon: Icons.check_circle_outline,
+                art: Art.allClear,
                 title: 'Nothing waiting for you',
                 message: 'Material indents and expenses that need approval will show up here.',
               )

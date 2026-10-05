@@ -90,6 +90,14 @@ State: Riverpod 3. Routing: go_router with role guards (`lib/core/router`). The 
 - Navigation: one navy sidebar at a time. The main sidebar (`app_shell.dart`, `SideNavItem`, `SideUserCard`)
   steps aside inside a project, whose own navy menu starts with "All projects". Phones use the bottom bar.
 - `PageScaffold` puts the page title as a heading inside the content on wide screens (title bar only on phones).
+- Illustrations (`assets/illustrations/*.svg`, flat, brand palette) and Lottie animations (`assets/lottie`) go
+  through `Art`, `Illustration` and `AppAnimation` (`core/widgets/art.dart`): sign-in panel, banners, empty states
+  (`MessageView(art: ...)`), loading (`LoadingView`) and "all done". Not as decoration on working screens.
+- Project Insight follows the analysis-card style: `ProjectAnalysisPanels` (`analysis_panels.dart`) shows cost
+  overrun, payables and schedule as `AnalysisPanel` + `StatBox` (only the bad number turns red) + `SimpleTable`
+  + one full-width "See detailed …" button.
+- Every project has a **Site profile** tab (`project_profile.dart`): cover, key facts, a "Go to" tile with a live
+  status for every section, team members with call/email, key details. Old `tab=team` links open it.
 - Home screens open with `HeroBanner`; projects are recognised by `ProjectAvatar`; anything awaiting a decision
   uses `DecisionButtons` (Reject / Approve).
 - `HoverCard` / `NeoMetricCard` / `StageTile` in `ceo_ui.dart` are the shared card primitives.

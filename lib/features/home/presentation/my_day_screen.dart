@@ -14,6 +14,7 @@ import '../../projects/presentation/project_editors.dart';
 import '../../projects/presentation/project_plain.dart';
 import '../data/my_day_provider.dart';
 import '../domain/my_day.dart';
+import '../../../core/widgets/art.dart';
 
 /// Home for managers, supervisors and staff: what needs doing today across
 /// their projects, each with the one button that does it, plus the everyday
@@ -43,6 +44,7 @@ class _MyDayScreenState extends ConsumerState<MyDayScreen> {
           if (d.projects.isEmpty) {
             return const MessageView(
               icon: Icons.apartment_outlined,
+              art: Art.emptyPlot,
               title: 'You are not on a project yet',
               message: 'Ask the office to add you to your site. Your daily work will show up here.',
             );
@@ -400,8 +402,8 @@ class _AllClear extends StatelessWidget {
       decoration: BoxDecoration(color: context.statusColors.okSoft, borderRadius: AppRadius.card),
       child: Row(
         children: [
-          Icon(Icons.task_alt, color: ok, size: 30),
-          const SizedBox(width: 14),
+          const AppAnimation.success(size: 64),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

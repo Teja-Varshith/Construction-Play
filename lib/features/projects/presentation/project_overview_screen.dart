@@ -32,6 +32,7 @@ import 'project_editors.dart';
 import 'project_gantt.dart';
 import 'project_nav_scope.dart';
 import 'project_plain.dart';
+import 'project_profile.dart';
 import '../../../core/router/app_shell.dart' show SideNavItem;
 import 'project_record_actions.dart';
 import 'project_reports.dart';
@@ -39,6 +40,7 @@ import '../../inventory/data/inventory_repository.dart';
 import '../../inventory/presentation/materials_section.dart';
 import '../../inventory/domain/inventory.dart';
 import 'ceo_ui.dart';
+import '../../../core/widgets/art.dart';
 
 const _muted = AppColors.muted;
 
@@ -105,10 +107,10 @@ class _ProjectScreen extends ConsumerStatefulWidget {
 /// Sections of the project sidebar, grouped. The first group is the
 /// project's summary; the rest is the detail behind it.
 const _sectionGroups = <(String?, List<ProjectTab>)>[
-  (null, [ProjectTab.overview, ProjectTab.reports]),
+  (null, [ProjectTab.overview, ProjectTab.profile, ProjectTab.reports]),
   ('Work', [ProjectTab.timeline, ProjectTab.daily, ProjectTab.materials, ProjectTab.issues, ProjectTab.documents]),
   ('Money', [ProjectTab.money]),
-  ('Project', [ProjectTab.team, ProjectTab.info, ProjectTab.activity]),
+  ('Project', [ProjectTab.info, ProjectTab.activity]),
 ];
 
 IconData _sectionIcon(ProjectTab t) => switch (t) {
@@ -120,7 +122,7 @@ IconData _sectionIcon(ProjectTab t) => switch (t) {
   ProjectTab.issues => Icons.flag_outlined,
   ProjectTab.documents => Icons.folder_outlined,
   ProjectTab.money => Icons.account_balance_wallet_outlined,
-  ProjectTab.team => Icons.groups_outlined,
+  ProjectTab.profile => Icons.home_work_outlined,
   ProjectTab.info => Icons.info_outline,
   ProjectTab.activity => Icons.history,
 };
@@ -189,7 +191,15 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
       ProjectTab.overview => ProjectDashboard(project: project),
       ProjectTab.reports => ProjectReportsSection(project: project, seeMoney: seeMoney),
       ProjectTab.timeline => _TimelineTab(project: project),
-      ProjectTab.team => _TeamTab(project: project),
+      ProjectTab.profile => ProjectProfile(
+        project: project,
+        config: config,
+        seeMoney: seeMoney,
+        visible: visible,
+        icon: _sectionIcon,
+        onOpen: (t) => _open(ProjectLink(t)),
+        onEditTeam: user.isAdmin ? () => add('details') : null,
+      ),
       ProjectTab.daily => _DailyProgressTab(project: project),
       ProjectTab.materials => MaterialsSection(
         project: project,
@@ -833,65 +843,6 @@ class _TimelineInsights extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Team
 // ---------------------------------------------------------------------------
-
-class _TeamTab extends ConsumerWidget {
-  const _TeamTab({required this.project});
-
-  final Project project;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final users = ref.watch(allUsersProvider);
-    return ProjectTabPage(
-      child: AsyncView(
-        value: users,
-        data: (people) {
-          final byId = {for (final person in people) person.uid: person};
-          final members = project.memberIds.map((id) => byId[id]).whereType<AppUser>().toList();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _TabIntro(title: 'Team', subtitle: 'People who currently have access to this project.'),
-              const SizedBox(height: 16),
-              if (members.isEmpty)
-                const _TabEmpty(
-                  icon: Icons.people_outline,
-                  title: 'No project team assigned',
-                  message: 'The office team has not assigned anyone yet.',
-                )
-              else
-                _Panel(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (var n = 0; n < members.length; n++) ...[
-                        if (n > 0) const Divider(height: 1),
-                        ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-                            foregroundColor: Theme.of(context).colorScheme.primary,
-                            child: Text(members[n].initials, style: const TextStyle(fontWeight: FontWeight.w800)),
-                          ),
-                          title: Text(
-                            members[n].name.isEmpty ? members[n].email : members[n].name,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            [members[n].role.label, if (members[n].designation.isNotEmpty) members[n].designation].join(' · '),
-                          ),
-                          trailing: members[n].uid == project.managerId ? const Pill('Project manager') : null,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Daily progress
@@ -1674,6 +1625,6 @@ class _TabEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 72),
-    child: MessageView(icon: icon, title: title, message: message),
+    child: MessageView(icon: icon, art: Art.emptyBlueprint, title: title, message: message),
   );
 }

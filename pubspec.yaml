@@ -20,8 +20,10 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.4.3
+  flutter_svg: ^2.3.0
   go_router: ^18.0.1
   intl: ^0.20.3
+  lottie: ^3.6.1
   pdf: ^3.13.1
   printing: ^5.15.1
   url_launcher: ^6.3.2
@@ -35,6 +37,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/illustrations/
+    - assets/lottie/
   fonts:
     - family: PlusJakartaSans
       fonts:

@@ -16,6 +16,7 @@ import '../domain/project_analysis.dart';
 import '../domain/project_insight.dart';
 import '../domain/project_nav.dart';
 import 'insight_charts.dart';
+import 'analysis_panels.dart';
 import 'insight_widgets.dart';
 import 'project_plain.dart';
 import 'project_nav_scope.dart';
@@ -54,6 +55,8 @@ class ProjectDashboard extends ConsumerWidget {
                 statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
                 open: open,
               ),
+              const SizedBox(height: 16),
+              ProjectAnalysisPanels(insight: i, config: config, seeMoney: seeMoney, open: open),
               const SizedBox(height: 16),
               SectionCard(
                 title: factors.isEmpty ? 'What needs attention' : 'What needs attention · ${factors.length}',
@@ -194,7 +197,9 @@ class _Summary extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (i.active) ...[
+          // The analysis panels below cover time, cost and bills in detail;
+          // the summary keeps only what they don't (on hold, issues).
+          if (i.active && (!i.scheduleReady || !plain.running || !plain.seeMoney)) ...[
             const Divider(height: 1),
             const SizedBox(height: 8),
             for (final line in lines)

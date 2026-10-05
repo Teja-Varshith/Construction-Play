@@ -6,6 +6,7 @@ import '../../../core/dynamic_form/field_values.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/utils/work_day.dart';
+import '../../../core/widgets/art.dart';
 import '../../../core/widgets/common.dart';
 import '../domain/project.dart';
 
@@ -522,10 +523,11 @@ class HeroBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+    clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(AppRadius.lg),
       gradient: const LinearGradient(
-        colors: [Color(0xFF3557D6), Color(0xFF4B49C8), Color(0xFF6A4CC9)],
+        colors: [Color(0xFF3557D6), Color(0xFF2E4DC2)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -534,24 +536,13 @@ class HeroBanner extends StatelessWidget {
     child: Stack(
       clipBehavior: Clip.none,
       children: [
-        // Soft decorative circles, purely visual.
+        // Line-art site on the right, purely visual; hidden when narrow.
         Positioned(
-          right: -30,
-          top: -40,
-          child: Container(
-            width: 150,
-            height: 150,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.07)),
-          ),
-        ),
-        Positioned(
-          right: 70,
-          bottom: -60,
-          child: Container(
-            width: 110,
-            height: 110,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.05)),
-          ),
+          right: -6,
+          bottom: -20,
+          child: MediaQuery.sizeOf(context).width < 700
+              ? const SizedBox.shrink()
+              : const Illustration(Art.heroLines, height: 150),
         ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/firebase/firebase_providers.dart';
 import '../../../core/widgets/common.dart';
 import '../../users/data/user_repository.dart';
+import '../../../core/widgets/art.dart';
 
 final projectActivityProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>(
@@ -38,6 +39,7 @@ class ProjectActivity extends ConsumerWidget {
             if (items.isEmpty)
               const MessageView(
                 icon: Icons.history,
+                art: Art.emptyBlueprint,
                 title: 'No changes recorded yet',
               ),
             for (final item in items)

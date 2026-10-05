@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/art.dart';
+import '../../../core/widgets/brand_mark.dart';
 
 /// Centred card used by the sign-in, setup and password screens.
 class AuthLayout extends StatelessWidget {
@@ -79,12 +81,7 @@ class _AuthContent extends StatelessWidget {
     final theme = Theme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(8)),
-          child: Icon(Icons.apartment_rounded, color: theme.colorScheme.onPrimary),
-        ),
+        const BrandMark(size: 48),
         const SizedBox(width: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Chennapatanam', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -100,7 +97,7 @@ class _AuthContent extends StatelessWidget {
       const SizedBox(height: 22),
       Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: AppColors.line),
           boxShadow: appSoftShadow,
@@ -119,106 +116,47 @@ class _AuthBrandPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: const Color(0xFFE8EEF2),
+          color: const Color(0xFFEEF2FF), // the illustration's sky, above it
+          borderRadius: BorderRadius.circular(AppRadius.lg + 4),
           border: Border.all(color: AppColors.line),
-          borderRadius: BorderRadius.circular(8),
         ),
         child: Stack(children: [
-          const Positioned.fill(child: CustomPaint(painter: _ArchitecturePainter())),
-          Positioned(
-            left: 28,
-            top: 28,
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(color: AppColors.blue, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.apartment_rounded, color: Colors.white),
+          const Positioned.fill(
+            child: Illustration(
+              Art.siteSkyline,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.bottomCenter,
+              height: double.infinity,
             ),
           ),
           Positioned(
-            left: 28,
-            bottom: 28,
-            child: Text('CHENNAPATANAM',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.blue,
-                      fontWeight: FontWeight.w900,
-                    )),
+            left: 24,
+            right: 24,
+            top: 24,
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                boxShadow: appCardShadow,
+              ),
+              child: Row(children: [
+                const BrandMark(size: 44),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Every site, every rupee, every day.',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    const Text('Progress, delays, materials and money for all your projects in one place.',
+                        style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                  ]),
+                ),
+              ]),
+            ),
           ),
         ]),
       );
-}
-
-class _ArchitecturePainter extends CustomPainter {
-  const _ArchitecturePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const blue = AppColors.blue;
-    final grid = Paint()
-      ..color = blue.withValues(alpha: 0.07)
-      ..strokeWidth = 1;
-    for (var x = 24.0; x < size.width; x += 28) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
-    }
-    for (var y = 20.0; y < size.height; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-
-    final top = Path()
-      ..moveTo(size.width * 0.19, size.height * 0.43)
-      ..lineTo(size.width * 0.54, size.height * 0.23)
-      ..lineTo(size.width * 0.83, size.height * 0.40)
-      ..lineTo(size.width * 0.48, size.height * 0.61)
-      ..close();
-    final front = Path()
-      ..moveTo(size.width * 0.19, size.height * 0.43)
-      ..lineTo(size.width * 0.48, size.height * 0.61)
-      ..lineTo(size.width * 0.48, size.height * 0.83)
-      ..lineTo(size.width * 0.19, size.height * 0.65)
-      ..close();
-    final side = Path()
-      ..moveTo(size.width * 0.48, size.height * 0.61)
-      ..lineTo(size.width * 0.83, size.height * 0.40)
-      ..lineTo(size.width * 0.83, size.height * 0.62)
-      ..lineTo(size.width * 0.48, size.height * 0.83)
-      ..close();
-    final outline = Paint()
-      ..color = blue.withValues(alpha: 0.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    canvas.drawPath(front, Paint()..color = const Color(0xFFF8FAFB));
-    canvas.drawPath(side, Paint()..color = const Color(0xFFD8E3EA));
-    canvas.drawPath(top, Paint()..color = const Color(0xFFFFFFFF));
-    canvas.drawPath(front, outline);
-    canvas.drawPath(side, outline);
-    canvas.drawPath(top, outline);
-
-    final detail = Paint()
-      ..color = blue.withValues(alpha: 0.42)
-      ..strokeWidth = 1.5;
-    for (var index = 1; index <= 3; index++) {
-      final x = size.width * (0.19 + index * 0.0725);
-      final y = size.height * (0.43 + index * 0.045);
-      canvas.drawLine(Offset(x, y), Offset(x, y + size.height * 0.17), detail);
-    }
-    for (var index = 1; index <= 3; index++) {
-      final y = size.height * (0.45 + index * 0.045);
-      canvas.drawLine(Offset(size.width * 0.52, y), Offset(size.width * 0.81, y - size.height * 0.17), detail);
-    }
-
-    final base = Paint()
-      ..color = blue.withValues(alpha: 0.22)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(size.width * 0.51, size.height * 0.84), width: size.width * 0.7, height: size.height * 0.13),
-      base,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArchitecturePainter oldDelegate) => false;
 }
 
 class AuthPrimaryButton extends StatelessWidget {
