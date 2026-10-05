@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 170">
+  <!-- ground plot -->
+  <path d="M20 132L120 104L220 132L120 160Z" fill="#DCE3FF"/>
+  <path d="M20 132L120 104L220 132L120 160Z" fill="none" stroke="#3557D6" stroke-width="2" stroke-dasharray="6 6"/>
+  <!-- survey flag -->
+  <path d="M120 130V44" stroke="#111A35" stroke-width="4" stroke-linecap="round"/>
+  <path d="M122 44H164L154 58L164 72H122Z" fill="#FF8A4C"/>
+  <ellipse cx="120" cy="131" rx="10" ry="4" fill="#111A35" fill-opacity="0.25"/>
+  <!-- cones -->
+  <path d="M50 134L58 112L66 134Z" fill="#FF8A4C"/>
+  <rect x="46" y="132" width="24" height="5" rx="2" fill="#111A35"/>
+  <path d="M174 138L182 116L190 138Z" fill="#FF8A4C"/>
+  <rect x="170" y="136" width="24" height="5" rx="2" fill="#111A35"/>
+  <!-- sun and sparkle -->
+  <circle cx="196" cy="38" r="16" fill="#FFC94D"/>
+  <path d="M50 40L54 48L62 50L54 52L50 60L46 52L38 50L46 48Z" fill="#5B7CFA"/>
+</svg>

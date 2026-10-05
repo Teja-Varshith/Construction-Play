@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 170">
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <!-- crane -->
+    <g stroke-opacity="0.55" stroke-width="3">
+      <path d="M330 168V30M344 168V30"/>
+      <path d="M330 150L344 132M330 114L344 96M330 78L344 60M330 42L344 30"/>
+      <path d="M200 30H408M220 44H330"/>
+      <path d="M232 44L246 30M260 44L274 30M288 44L302 30"/>
+      <path d="M337 30V8L200 30M337 8L408 30"/>
+      <path d="M246 44V82"/>
+    </g>
+    <rect x="232" y="82" width="30" height="14" rx="3" fill="#FFC94D" stroke="none"/>
+    <!-- towers -->
+    <g stroke-opacity="0.45" stroke-width="2.5">
+      <rect x="40" y="70" width="64" height="100" rx="5"/>
+      <rect x="116" y="38" width="76" height="132" rx="5"/>
+      <rect x="204" y="104" width="72" height="66" rx="5"/>
+      <rect x="360" y="96" width="50" height="74" rx="5"/>
+    </g>
+    <g stroke-opacity="0.35" stroke-width="2">
+      <path d="M54 88H90M54 106H90M54 124H90M54 142H90"/>
+      <path d="M130 58H178M130 78H178M130 98H178M130 118H178M130 138H178"/>
+      <path d="M218 122H262M218 140H262"/>
+      <path d="M372 114H398M372 132H398M372 150H398"/>
+    </g>
+  </g>
+  <g fill="#FFC94D">
+    <rect x="150" y="70" width="10" height="10" rx="2"/>
+    <rect x="66" y="112" width="10" height="10" rx="2"/>
+  </g>
+</svg>
