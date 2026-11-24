@@ -2,6 +2,9 @@
 /// the URL (`/projects/:id?tab=reports`).
 enum ProjectTab {
   overview('overview', 'Insight'),
+  cadence('cadence', 'Daily Cadence'),
+  labor('labor', 'Workforce & Labor'),
+  drawings('drawings', 'Drawings & Design'),
   reports('reports', 'Reports'),
   timeline('timeline', 'Timeline'),
   profile('profile', 'Site profile'),

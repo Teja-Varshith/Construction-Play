@@ -5,6 +5,8 @@ enum UserRole {
   admin('Admin / Office', 'Enters data, manages users and settings'),
   manager('Project manager', 'Runs their assigned projects'),
   supervisor('Site supervisor', 'Daily reports and attendance on site'),
+  designer('Designer', 'Architectural drawings, 2D/3D layouts and design revisions'),
+  sales('Sales / CRM', 'Leads, customer follow-ups, quotations and sales targets'),
   staff('Engineer / Staff', 'Own tasks and check-in'),
   unknown('Unknown', 'Role not recognised by this app version');
 
@@ -16,7 +18,7 @@ enum UserRole {
       UserRole.values.firstWhere((r) => r.name == name, orElse: () => UserRole.unknown);
 
   /// Roles an admin can assign.
-  static const assignable = [ceo, admin, manager, supervisor, staff];
+  static const assignable = [ceo, admin, manager, supervisor, designer, sales, staff];
 }
 
 class AppUser {
@@ -42,6 +44,10 @@ class AppUser {
 
   bool get isAdmin => role == UserRole.admin;
   bool get isCeo => role == UserRole.ceo;
+  bool get isManager => role == UserRole.manager;
+  bool get isSupervisor => role == UserRole.supervisor;
+  bool get isDesigner => role == UserRole.designer;
+  bool get isSales => role == UserRole.sales;
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();

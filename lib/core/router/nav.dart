@@ -19,6 +19,7 @@ class NavItem {
 List<NavItem> navItemsFor(UserRole role) {
   final leader = role == UserRole.ceo || role == UserRole.admin;
   final lead = leader || role == UserRole.manager;
+  final canSell = lead || role == UserRole.sales;
   return [
     if (leader)
       const NavItem('/home', 'Home', Icons.space_dashboard_outlined, Icons.space_dashboard)
@@ -31,6 +32,10 @@ List<NavItem> navItemsFor(UserRole role) {
     if (lead) ...const [
       NavItem('/insights', 'Insights', Icons.insights_outlined, Icons.insights, group: 'Portfolio'),
       NavItem('/watchlist', 'Delay watchlist', Icons.crisis_alert_outlined, Icons.crisis_alert, group: 'Portfolio'),
+    ],
+    if (canSell) ...const [
+      NavItem('/leads', 'CRM & Leads', Icons.contact_mail_outlined, Icons.contact_mail, group: 'Sales & CRM'),
+      NavItem('/sales-performance', 'Sales Performance', Icons.query_stats_outlined, Icons.query_stats, group: 'Sales & CRM'),
     ],
     if (leader) ...const [
       NavItem('/organisation', 'Organisation', Icons.groups_outlined, Icons.groups, group: 'Portfolio'),
@@ -55,6 +60,8 @@ const Map<String, Set<UserRole>> routeAccess = {
   '/insights': {UserRole.ceo, UserRole.admin, UserRole.manager},
   '/portfolio': {UserRole.ceo, UserRole.admin, UserRole.manager},
   '/watchlist': {UserRole.ceo, UserRole.admin, UserRole.manager},
+  '/leads': {UserRole.ceo, UserRole.admin, UserRole.manager, UserRole.sales},
+  '/sales-performance': {UserRole.ceo, UserRole.admin, UserRole.manager, UserRole.sales},
 };
 
 bool canAccess(UserRole role, String location) {

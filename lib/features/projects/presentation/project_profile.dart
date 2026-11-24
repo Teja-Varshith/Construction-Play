@@ -344,6 +344,9 @@ class _SectionHub extends ConsumerWidget {
               i.overduePayablesCount > 0 ? Tone.bad : Tone.warn)
           : ('${Money.compact(i.spentPaise)} spent', Tone.ok),
       ProjectTab.reports => ('Make a PDF report', Tone.none),
+      ProjectTab.cadence => ('8:30 Plan, 1:00 Review, 9:30 Closing', Tone.none),
+      ProjectTab.labor => ('Daily workforce & crew muster', Tone.none),
+      ProjectTab.drawings => ('2D drawings & 3D render revisions', Tone.none),
       ProjectTab.info => ('Holds, status changes, all fields', Tone.none),
       ProjectTab.activity => ('Every change, who and when', Tone.none),
       ProjectTab.overview => ('Summary and problems', Tone.none),

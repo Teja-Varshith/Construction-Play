@@ -10,6 +10,7 @@ import '../../../core/utils/money.dart';
 import '../../../core/utils/work_day.dart';
 import '../../../core/widgets/common.dart';
 import '../../auth/data/session.dart';
+import '../../cadence/presentation/daily_cadence_card.dart';
 import '../data/project_insight_provider.dart';
 import '../domain/project.dart';
 import '../domain/project_analysis.dart';
@@ -55,6 +56,8 @@ class ProjectDashboard extends ConsumerWidget {
                 statusLabel: config.labelOf(ConfigList.projectStatuses, project.statusId),
                 open: open,
               ),
+              const SizedBox(height: 16),
+              DailyCadenceCard(projectId: project.id),
               const SizedBox(height: 16),
               ProjectAnalysisPanels(insight: i, config: config, seeMoney: seeMoney, open: open),
               const SizedBox(height: 16),

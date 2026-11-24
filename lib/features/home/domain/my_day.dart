@@ -17,7 +17,7 @@ enum DayUrgency {
   final String label;
 }
 
-enum DayTaskKind { report, backfill, issue, approve, delivery, reorder, delay, book, expense }
+enum DayTaskKind { report, backfill, issue, approve, delivery, reorder, delay, book, expense, cadence, drawing }
 
 /// One thing a site person or manager should do, with the single action that
 /// does it. Built from records at read time; nothing is stored.
@@ -93,6 +93,17 @@ class MyDay {
           detail: 'Work done, quantity against target and at least one photo.',
           action: 'Submit report',
           urgency: DayUrgency.now,
+        ));
+      }
+      if (!sunday) {
+        tasks.add(DayTask(
+          kind: DayTaskKind.cadence,
+          project: project,
+          title: 'Daily Cadence (8:30 Plan / 1:00 PM / 9:30 PM)',
+          detail: 'Morning muster & targets, mid-day progress review, and closing sign-off.',
+          action: 'Open Cadence',
+          urgency: DayUrgency.today,
+          link: const ProjectLink(ProjectTab.cadence),
         ));
       }
       // Past days that can still be filled in (inside the backdate window).

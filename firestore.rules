@@ -34,7 +34,7 @@ service cloud.firestore {
       return roleIn(['admin', 'ceo']);
     }
     function validRole(r) {
-      return r in ['ceo', 'admin', 'manager', 'supervisor', 'staff'];
+      return r in ['ceo', 'admin', 'manager', 'supervisor', 'designer', 'sales', 'staff'];
     }
 
     // Audit stamps are set by the client with serverTimestamp() and verified here.
@@ -236,6 +236,29 @@ service cloud.firestore {
         }
       }
 
+      // ---------- SANAARCH 360: Cadence, Labor & Drawings ----------
+      match /cadence/{date} {
+        allow read: if isLeader() || isMember(pid);
+        allow create, update: if projectOpen(pid) && reporter(pid)
+          && (auditOnCreate() || auditOnUpdate());
+        allow delete: if false;
+      }
+
+      match /labour/{date} {
+        allow read: if isLeader() || isMember(pid);
+        allow create, update: if projectOpen(pid) && reporter(pid)
+          && (auditOnCreate() || auditOnUpdate());
+        allow delete: if false;
+      }
+
+      match /drawings/{id} {
+        allow read: if isLeader() || isMember(pid);
+        allow create, update: if projectOpen(pid)
+          && (manager(pid) || (roleIn(['designer', 'supervisor']) && isMember(pid)))
+          && (auditOnCreate() || auditOnUpdate());
+        allow delete: if false;
+      }
+
       // ---------- site stores (indents, GRNs, material issues) ----------
       // Stock is never stored; it is summed from GRNs minus issues at read time.
       function validLines(items) {
@@ -400,6 +423,21 @@ service cloud.firestore {
           && request.resource.data.savedBy == request.auth.uid && request.resource.data.savedAt == request.time;
         allow update, delete: if false;
       }
+    }
+
+    // ---------- CRM & Sales (SANAARCH 360) ----------
+    match /leads/{id} {
+      allow read: if isActive();
+      allow create: if isActive() && auditOnCreate() && request.resource.data.clientName is string;
+      allow update: if isActive() && auditOnUpdate();
+      allow delete: if false;
+    }
+
+    match /salesTargets/{id} {
+      allow read: if isActive();
+      allow create, update: if (isLeader() || roleIn(['manager']))
+        && (auditOnCreate() || auditOnUpdate());
+      allow delete: if false;
     }
 
     // ---------- activity / audit trail ----------

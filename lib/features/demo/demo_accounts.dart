@@ -24,6 +24,8 @@ const demoAccounts = [
   DemoAccount(UserRole.manager, 'Karthik Iyer (Demo Manager)', 'manager.demo@chennapatanam.app', 'Project Manager'),
   DemoAccount(UserRole.manager, 'Divya Menon (Demo Manager)', 'manager2.demo@chennapatanam.app', 'Project Manager'),
   DemoAccount(UserRole.supervisor, 'Suresh Kumar (Demo Supervisor)', 'supervisor.demo@chennapatanam.app', 'Site Supervisor'),
+  DemoAccount(UserRole.designer, 'Ananya Sharma (Demo Designer)', 'designer.demo@chennapatanam.app', 'Lead Architect & Interior Designer'),
+  DemoAccount(UserRole.sales, 'Rahul Varma (Demo Sales)', 'sales.demo@chennapatanam.app', 'Sales & CRM Lead'),
   DemoAccount(UserRole.staff, 'Meena Das (Demo Staff)', 'staff.demo@chennapatanam.app', 'Site Engineer'),
 ];
 

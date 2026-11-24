@@ -36,6 +36,9 @@ import 'project_profile.dart';
 import '../../../core/router/app_shell.dart' show SideNavItem;
 import 'project_record_actions.dart';
 import 'project_reports.dart';
+import '../../cadence/presentation/daily_cadence_card.dart';
+import '../../design/presentation/drawings_tab.dart';
+import '../../labor/presentation/labor_tracker_tab.dart';
 import '../../inventory/data/inventory_repository.dart';
 import '../../inventory/presentation/materials_section.dart';
 import '../../inventory/domain/inventory.dart';
@@ -108,13 +111,16 @@ class _ProjectScreen extends ConsumerStatefulWidget {
 /// project's summary; the rest is the detail behind it.
 const _sectionGroups = <(String?, List<ProjectTab>)>[
   (null, [ProjectTab.overview, ProjectTab.profile, ProjectTab.reports]),
-  ('Work', [ProjectTab.timeline, ProjectTab.daily, ProjectTab.materials, ProjectTab.issues, ProjectTab.documents]),
+  ('Work', [ProjectTab.cadence, ProjectTab.labor, ProjectTab.drawings, ProjectTab.timeline, ProjectTab.daily, ProjectTab.materials, ProjectTab.issues, ProjectTab.documents]),
   ('Money', [ProjectTab.money]),
   ('Project', [ProjectTab.info, ProjectTab.activity]),
 ];
 
 IconData _sectionIcon(ProjectTab t) => switch (t) {
   ProjectTab.overview => Icons.insights_outlined,
+  ProjectTab.cadence => Icons.schedule_outlined,
+  ProjectTab.labor => Icons.engineering_outlined,
+  ProjectTab.drawings => Icons.architecture_outlined,
   ProjectTab.reports => Icons.summarize_outlined,
   ProjectTab.timeline => Icons.view_timeline_outlined,
   ProjectTab.daily => Icons.event_note_outlined,
@@ -189,6 +195,11 @@ class _ProjectScreenState extends ConsumerState<_ProjectScreen> {
 
     Widget page(ProjectTab tab) => switch (tab) {
       ProjectTab.overview => ProjectDashboard(project: project),
+      ProjectTab.cadence => ProjectTabPage(
+          child: DailyCadenceCard(projectId: project.id),
+        ),
+      ProjectTab.labor => LaborTrackerTab(projectId: project.id),
+      ProjectTab.drawings => DrawingsTab(projectId: project.id),
       ProjectTab.reports => ProjectReportsSection(project: project, seeMoney: seeMoney),
       ProjectTab.timeline => _TimelineTab(project: project),
       ProjectTab.profile => ProjectProfile(

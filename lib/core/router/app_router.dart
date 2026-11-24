@@ -9,6 +9,9 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/setup_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
+import '../../features/crm/presentation/lead_detail_screen.dart';
+import '../../features/crm/presentation/leads_screen.dart';
+import '../../features/crm/presentation/sales_performance_screen.dart';
 import '../../features/finance/presentation/approvals_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -152,6 +155,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const ApprovalsScreen(),
           ),
           GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+          GoRoute(
+            path: '/leads',
+            builder: (_, _) => const LeadsScreen(),
+            routes: [
+              GoRoute(
+                path: ':leadId',
+                builder: (_, state) => LeadDetailScreen(leadId: state.pathParameters['leadId']!),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/sales-performance',
+            builder: (_, _) => const SalesPerformanceScreen(),
+          ),
           GoRoute(path: '/insights', builder: (_, _) => const PortfolioInsightsScreen()),
           // The portfolio tracker for managers, whose home is My day.
           GoRoute(

@@ -127,6 +127,8 @@ IconData _icon(DayTaskKind k) => switch (k) {
   DayTaskKind.delay => Icons.schedule_outlined,
   DayTaskKind.book => Icons.receipt_long_outlined,
   DayTaskKind.expense => Icons.undo_outlined,
+  DayTaskKind.cadence => Icons.timer_outlined,
+  DayTaskKind.drawing => Icons.architecture_outlined,
 };
 
 /// Runs a task's action: today's report opens the form directly, everything
